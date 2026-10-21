@@ -14,3 +14,5 @@ Projeção estatística independente feita a partir de dados públicos (resultad
 - `d3.min.js` — biblioteca de gráficos (D3 v7.9.0), incluída para a página não depender de serviços externos.
 
 A página relê os arquivos de `data/` a cada 10 minutos (a cada 1 minuto no dia 25/10).
+
+Na noite de 25/10 (a partir das 16h55), a página também lê o placar direto do arquivo público do TSE (`resultados.tse.jus.br/oficial/ele2026/6258/...`) a cada 60 segundos, no navegador de quem estiver vendo. Se o TSE não responder, ela usa `data/apuracao.json`. Para testar com outra eleição: `?tse=<código>`.

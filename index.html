@@ -66,22 +66,84 @@ footer.pub { max-width: 1080px; margin: 32px auto 0; color: var(--color-fg-muted
     }
   };
   let ultimo = '';
-  const carregar = async () => {
+  const carregar = async (forcar) => {
     const t = Date.now();
     const res = await Promise.all(FONTES.map((f) => fetch(`data/${f}.json?t=${t}`, { cache: 'no-store' }).then((r) => r.ok ? r.text() : null).catch(() => null)));
     const assinatura = res.join('|');
-    if (assinatura === ultimo) return;
+    if (assinatura === ultimo && !forcar) return;
     ultimo = assinatura;
     FONTES.forEach((f, i) => { if (res[i] != null) { try { store[f] = { status: 'ok', data: JSON.parse(res[i]) }; } catch (e) { store[f] = { status: 'error', data: [] }; } } });
+    mesclarApuracao();
+    for (const id of Object.keys(calcs)) delete store[id];
     compute();
     document.querySelectorAll('.dash-skeleton').forEach((el) => { if (el.textContent !== '—') el.classList.remove('dash-skeleton'); });
     subs.forEach((cb) => { try { cb(); } catch (e) { console.error(e); } });
   };
+  // Apuração ao vivo: lê o arquivo oficial do TSE direto do navegador a cada 60 s.
+  const qs = new URLSearchParams(location.search);
+  const ELE = qs.get('tse') || '6258';
+  const pad = String(ELE).padStart(6, '0');
+  const BASE = `https://resultados.tse.jus.br/oficial/ele2026/${ELE}`;
+  const URLS = [`${BASE}/dados/br/br-c0001-e${pad}-u.json`, `${BASE}/dados-simplificados/br/br-c0001-e${pad}-r.json`];
+  const pausa = {};
+  let vivo = [];
+  try { vivo = JSON.parse(localStorage.getItem('tse_' + ELE) || '[]'); } catch (e) { vivo = []; }
+  const num = (x) => Number(String(x ?? '').replace(/\./g, '').replace(',', '.'));
+  const janela = () => {
+    if (qs.has('tse')) return true;
+    const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const ini = new Date(2026, 9, 25, 16, 55), fim = new Date(2026, 9, 26, 8, 0);
+    return agora >= ini && agora <= fim;
+  };
+  const lerTSE = async () => {
+    if (!janela()) return false;
+    for (const u of URLS) {
+      if (pausa[u] && Date.now() < pausa[u]) continue;
+      try {
+        const r = await fetch(u + '?t=' + Math.floor(Date.now() / 30000), { cache: 'no-store' });
+        if (!r.ok) { pausa[u] = Date.now() + 10 * 60000; continue; }
+        const j = await r.json();
+        const achados = {};
+        const andar = (o) => { if (Array.isArray(o)) return o.forEach(andar); if (!o || typeof o !== 'object') return;
+          if ((o.n === '13' || o.n === '22') && o.nm && o.vap != null && !(o.n in achados)) achados[o.n] = num(o.vap);
+          Object.values(o).forEach(andar); };
+        andar(j.carg || j);
+        const voto = (n) => (n in achados ? achados[n] : NaN);
+        const vF = voto('22'), vL = voto('13');
+        const pst = num(j.s && j.s.pst != null ? j.s.pst : j.pst);
+        if (!(vF + vL > 0) || !(pst > 0)) return false;
+        const linha = { uf: 'BR', estado: 'Brasil', urnas_apuradas_pct: pst, flavio_pct: Math.round(10000 * vF / (vF + vL)) / 100, lula_pct: Math.round(10000 * vL / (vF + vL)) / 100, atualizado_em: String(j.ht || j.hg || '').slice(0, 5), fonte: 'tse_ao_vivo' };
+        if (!vivo.length || vivo[vivo.length - 1].urnas_apuradas_pct !== linha.urnas_apuradas_pct) {
+          vivo.push(linha);
+          try { localStorage.setItem('tse_' + ELE, JSON.stringify(vivo)); } catch (e) {}
+        }
+        return true;
+      } catch (e) { pausa[u] = Date.now() + 2 * 60000; }
+    }
+    return false;
+  };
+  const mesclarApuracao = () => {
+    if (!vivo.length) return;
+    const base = (store.apuracao && store.apuracao.status === 'ok' ? store.apuracao.data : []).filter((r) => r.uf !== 'AGUARDANDO');
+    const pts = new Map();
+    for (const r of [...base.filter((r) => r.uf === 'BR'), ...vivo]) pts.set(Number(r.urnas_apuradas_pct), r);
+    const br = [...pts.values()].sort((a, b) => a.urnas_apuradas_pct - b.urnas_apuradas_pct);
+    const ultimo = br[br.length - 1];
+    store.apuracao = { status: 'ok', data: [...br.filter((r) => r !== ultimo), ...base.filter((r) => r.uf !== 'BR'), ultimo] };
+  };
+  const ciclo = async () => {
+    const mudouTSE = await lerTSE();
+    await carregar(mudouTSE);
+  };
+
   window.addEventListener('DOMContentLoaded', () => {
-    carregar();
+    ciclo();
     // Recarrega os dados a cada 60 s (no domingo da apuração) ou 10 min (outros dias).
-    const dom = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) === '2026-10-25';
-    setInterval(carregar, dom ? 60000 : 600000);
+    // A cada 60 s no domingo da apuração (e quando ?tse= é usado para teste); a cada 10 min nos outros dias.
+    const dom = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) === '2026-10-25' || qs.has('tse');
+    setInterval(ciclo, dom ? 60000 : 600000);
+    // Se a página abrir antes do domingo e ficar aberta, passa a ler a cada 60 s quando a apuração começar.
+    if (!dom) setInterval(() => { if (janela()) ciclo(); }, 60000);
     let w = innerWidth; addEventListener('resize', () => { if (Math.abs(innerWidth - w) > 40) { w = innerWidth; subs.forEach((cb) => cb()); } });
   });
 })();
@@ -1079,7 +1141,7 @@ dash.onData(() => {
     setText(document.getElementById('stamp'), new Date(last.data).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }));
   }
   const ap = dash.data('apuracao'), sec = document.getElementById('apuracao');
-  const br = ap.status === 'ok' ? ap.data.find((a) => a.uf === 'BR') : null;
+  const br = ap.status === 'ok' ? ap.data.filter((a) => a.uf === 'BR').sort((a, b) => Number(b.urnas_apuradas_pct) - Number(a.urnas_apuradas_pct))[0] || null : null;
   sec.hidden = !br;
   if (br) {
     setText(document.getElementById('apF'), pct(Number(br.flavio_pct), 2)); setText(document.getElementById('apL'), pct(Number(br.lula_pct), 2));
@@ -1099,7 +1161,7 @@ dash.onData(() => {
 });
 </script>
 
-<footer class="pub">Projeção estatística independente, feita a partir de dados públicos (TSE e pesquisas registradas). Não é pesquisa eleitoral. Os dados são atualizados automaticamente; a página recarrega os números sozinha.</footer>
+<footer class="pub">Projeção estatística independente, feita a partir de dados públicos (TSE e pesquisas registradas). Não é pesquisa eleitoral. Os dados são atualizados automaticamente; a página recarrega os números sozinha. Na noite da apuração (25/10, a partir das 17h), o placar é lido direto dos arquivos públicos do TSE a cada 60 segundos.</footer>
 </div>
 </body>
 </html>
