@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projeção 2º turno 2026</title>
+<meta name="description" content="Projeção estatística do 2º turno presidencial de 2026 (Lula x Flávio) por estado, região e Brasil. Não é pesquisa eleitoral.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<script src="d3.min.js"></script>
+<style>
+:root {
+  --font-anthropic-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-anthropic-serif: "Source Serif 4", Georgia, serif;
+  --color-bg: #f6f5f1; --color-panel: #ffffff; --color-fg: #1f1e1c; --color-fg-muted: #6b6862;
+  --color-border-line: #e3e0d8; --color-warn: #c98a12; --color-bad: #c43d3d;
+  --cds-text-secondary: #6b6862; --cds-surface-popover: #ffffff; --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.12);
+  --cds-border: #e3e0d8; --cds-chart-axis: #b9b5ab; --cds-chart-grid: #eceae4; --cds-chart-muted: #bdb9b0; --cds-chart-reference: #8f8b82;
+  --cds-font-size-caption: .8125rem; --cds-font-size-body: .9375rem; --cds-font-size-heading: 1.25rem; --cds-font-size-title: clamp(1.6rem, 4.5vw, 2.2rem);
+  --cds-font-weight-medium: 600;
+  --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 16px; --cds-gap-lg: 24px;
+  --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 20px;
+  --cds-radius: 10px; --cds-dur-slow: .5s; --cds-ease-out: cubic-bezier(.2,.8,.2,1);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #191817; --color-panel: #23221f; --color-fg: #ecebe7; --color-fg-muted: #a29f97;
+    --color-border-line: #3a3833; --cds-text-secondary: #a29f97; --cds-surface-popover: #2c2a27; --cds-border: #3a3833;
+    --cds-chart-axis: #5c5952; --cds-chart-grid: #2f2d2a; --cds-chart-muted: #5f5c55; --cds-chart-reference: #8a867d;
+    color-scheme: dark;
+  }
+}
+html, body { margin: 0; background: var(--color-bg); }
+#dash-root { padding: 24px var(--dash-gutter) 48px; }
+.dash-skeleton { color: transparent !important; background: var(--color-border-line); border-radius: 6px; }
+.pj .tip { position: absolute; display: none; pointer-events: none; background: var(--cds-surface-popover); box-shadow: var(--cds-shadow-popover); border: 1px solid var(--color-border-line); border-radius: 8px; padding: 6px 8px; font-size: 12px; z-index: 5; color: var(--color-fg); }
+.pj .tip .t { color: var(--color-fg-muted); }
+.pj .scroll { overflow: auto; }
+.pj .card { overflow-x: auto; }
+footer.pub { max-width: 1080px; margin: 32px auto 0; color: var(--color-fg-muted); font: 12px/1.5 var(--font-anthropic-sans); }
+</style>
+<script>
+// Substitui o ambiente do painel do Claude: carrega os dados de ./data e roda as mesmas fórmulas.
+(() => {
+  const FONTES = ['base_1t','pesquisas','transferencias','premissas','historico','atualizacoes','apuracao','oficial_1t','erros_historicos','apuracao_1t'];
+  const calcs = {}, store = {}, subs = [];
+  const dash = window.dash = {
+    colors: ['#2f6fde', '#d9622b'],
+    calc: (id, o) => { calcs[id] = o; },
+    data: (id) => store[id] || { status: 'loading', data: [] },
+    onData: (cb) => { subs.push(cb); },
+    setLink: (pg) => { history.replaceState(null, '', pg === 'projecao' ? location.pathname : '#' + pg); },
+  };
+  const compute = () => {
+    const done = new Set(FONTES.filter((f) => store[f] && store[f].status === 'ok'));
+    let progress = true;
+    while (progress) {
+      progress = false;
+      for (const [id, o] of Object.entries(calcs)) {
+        if (done.has(id) || !o.inputs.every((i) => done.has(i))) continue;
+        try { store[id] = { status: 'ok', data: o.fn(...o.inputs.map((i) => store[i].data)) }; }
+        catch (e) { console.error(id, e); store[id] = { status: 'error', data: [] }; }
+        done.add(id); progress = true;
+      }
+    }
+  };
+  let ultimo = '';
+  const carregar = async () => {
+    const t = Date.now();
+    const res = await Promise.all(FONTES.map((f) => fetch(`data/${f}.json?t=${t}`, { cache: 'no-store' }).then((r) => r.ok ? r.text() : null).catch(() => null)));
+    const assinatura = res.join('|');
+    if (assinatura === ultimo) return;
+    ultimo = assinatura;
+    FONTES.forEach((f, i) => { if (res[i] != null) { try { store[f] = { status: 'ok', data: JSON.parse(res[i]) }; } catch (e) { store[f] = { status: 'error', data: [] }; } } });
+    compute();
+    document.querySelectorAll('.dash-skeleton').forEach((el) => { if (el.textContent !== '—') el.classList.remove('dash-skeleton'); });
+    subs.forEach((cb) => { try { cb(); } catch (e) { console.error(e); } });
+  };
+  window.addEventListener('DOMContentLoaded', () => {
+    carregar();
+    // Recarrega os dados a cada 60 s (no domingo da apuração) ou 10 min (outros dias).
+    const dom = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) === '2026-10-25';
+    setInterval(carregar, dom ? 60000 : 600000);
+    let w = innerWidth; addEventListener('resize', () => { if (Math.abs(innerWidth - w) > 40) { w = innerWidth; subs.forEach((cb) => cb()); } });
+  });
+})();
+</script>
+</head>
+<body>
+<div id="dash-root">
+<style>
+#dash-root { --dash-gutter: clamp(12px, 3vw, 32px); }
+.pj { max-width: 1080px; margin-inline: auto; font-family: var(--font-anthropic-sans); color: var(--color-fg); display: grid; gap: var(--cds-gap-lg); }
+.pj * { box-sizing: border-box; }
+.pj h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; line-height: 1.2; }
+.pj h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0 0 var(--cds-gap-xs); }
+.pj .note { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin: 0 0 var(--cds-gap-md); line-height: 1.45; }
+.pj .lead { font-size: var(--cds-font-size-body); line-height: 1.5; margin: var(--cds-gap-xs) 0 0; }
+.pj .stamp { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin-top: var(--cds-gap-xs); }
+.pj .card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+.pj .grid { display: grid; gap: var(--cds-gap-md); grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+.pj .duel { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: var(--cds-gap-md); }
+.pj .cand { display: grid; gap: 2px; }
+.pj .cand.r { text-align: right; }
+.pj .cand .name { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); }
+.pj .cand .party { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.pj .big { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: clamp(2.4rem, 8vw, 3.6rem); line-height: 1; font-variant-numeric: tabular-nums; }
+.pj .votes { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.pj .vs { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); padding-bottom: 8px; }
+.pj .bar { position: relative; height: 14px; border-radius: 7px; overflow: hidden; display: flex; margin: var(--cds-gap-md) 0 var(--cds-gap-xs); background: var(--color-border-line); }
+.pj .bar span { display: block; height: 100%; transition: width var(--cds-dur-slow) var(--cds-ease-out); }
+.pj .bar .mid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; background: var(--color-fg); opacity: .6; }
+.pj .barlab { display: flex; justify-content: center; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.pj .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: var(--cds-gap-md); margin-top: var(--cds-gap-lg); }
+.pj .kpi { border-top: 1px solid var(--color-border-line); padding-top: var(--cds-pad-sm); }
+.pj .kpi .k { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.pj .kpi .v { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-heading); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.pj .live { border-color: var(--color-warn); }
+.pj .live .dot { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; background: var(--color-bad); margin-right: 6px; animation: pjpulse 1.6s infinite; }
+@keyframes pjpulse { 50% { opacity: .3; } }
+.pj .tiles { position: relative; }
+.pj .legend { display: flex; justify-content: space-between; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); margin-top: var(--cds-gap-xs); gap: var(--cds-gap-sm); }
+.pj .ramp { height: 8px; border-radius: 4px; flex: 1; align-self: center; }
+.pj table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.pj th, .pj td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.pj th:first-child, .pj td:first-child { text-align: left; }
+.pj th { position: sticky; top: 0; background: var(--color-panel); color: var(--color-fg-muted); font-weight: var(--cds-font-weight-medium); }
+.pj th button { all: unset; cursor: pointer; }
+.pj th[aria-sort] button::after { content: ' ↕'; opacity: .4; }
+.pj th[aria-sort=ascending] button::after { content: ' ↑'; opacity: 1; }
+.pj th[aria-sort=descending] button::after { content: ' ↓'; opacity: 1; }
+.pj .scroll { max-height: 34rem; overflow: auto; }
+.pj .xs-hide { }
+@media (max-width: 620px) { .pj .xs-hide { display: none; } }
+.pj .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: var(--cds-font-size-caption); border: 1px solid var(--color-border-line); }
+.pj input[type=search] { width: 100%; padding: 8px 10px; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-bg); color: var(--color-fg); font: inherit; font-size: var(--cds-font-size-caption); margin-bottom: var(--cds-gap-sm); }
+.pj .tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 5; display: none; }
+.pj .tip .t { color: var(--cds-text-secondary); }
+.pj details { font-size: var(--cds-font-size-caption); line-height: 1.55; }
+.pj details summary { cursor: pointer; font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); }
+.pj details ul, .pj details ol { padding-left: 1.2rem; }
+.pj .warn { border-left: 3px solid var(--color-warn); padding-left: var(--cds-pad-md); }
+.pj .chart { position: relative; min-height: 120px; }
+.pj [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+.pj [data-dash-source-state=empty] { color: transparent; }
+
+.pj .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--color-border-line); }
+.pj .tabs button { all: unset; cursor: pointer; padding: 10px 14px; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.pj .tabs button[aria-selected=true] { color: var(--color-fg); border-bottom-color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.pj .pg { display: grid; gap: var(--cds-gap-lg); }
+.pj .pg[hidden] { display: none; }
+.pj .linkbtn { all: unset; cursor: pointer; text-decoration: underline; color: var(--color-fg); }
+.pj h3 { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); margin: var(--cds-gap-md) 0 var(--cds-gap-xs); }
+.pj .formula { background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md); font-size: var(--cds-font-size-caption); line-height: 1.6; overflow-x: auto; white-space: pre; margin: var(--cds-gap-sm) 0; }
+.pj ul.lead, .pj ol.lead { padding-left: 1.2rem; display: grid; gap: 6px; }
+.pj table.wrap td, .pj table.wrap th { white-space: normal; text-align: left; vertical-align: top; }
+.pj .flow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cds-gap-sm); }
+.pj .fcol { display: grid; gap: var(--cds-gap-sm); flex: 1 1 14rem; }
+.pj .fbox { flex: 1 1 10rem; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-sm) var(--cds-pad-md); display: grid; gap: 4px; background: var(--color-bg); }
+.pj .fbox span { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); line-height: 1.4; }
+.pj .fbox em { font-style: normal; font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-heading); }
+.pj .farrow { color: var(--color-fg-muted); }
+@media (max-width: 620px) { .pj .farrow { transform: rotate(90deg); width: 100%; text-align: center; } }
+
+.pj .ing { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--cds-gap-sm); grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+.pj .ing li { border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-sm) var(--cds-pad-md); display: grid; gap: 4px; background: var(--color-bg); }
+.pj .ing li > span { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); line-height: 1.4; }
+.pj .faq { display: grid; gap: 0; }
+.pj .faq details { border-bottom: 1px solid var(--color-border-line); padding: 10px 0; }
+.pj .faq summary { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); cursor: pointer; }
+.pj .faq p { margin: 8px 0 2px; font-size: var(--cds-font-size-body); line-height: 1.55; color: var(--color-fg); }
+
+.pj .seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: 999px; padding: 3px; width: fit-content; max-width: 100%; margin-bottom: var(--cds-gap-md); }
+.pj .seg button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.pj .seg button[aria-checked=true] { background: var(--color-panel); color: var(--color-fg); box-shadow: 0 0 0 1px var(--color-border-line); font-weight: var(--cds-font-weight-medium); }
+.pj .simnums { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: var(--cds-gap-md); margin-bottom: var(--cds-gap-sm); }
+.pj .sn .k { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.pj .sn .v { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-heading); font-variant-numeric: tabular-nums; }
+.pj .simctl { display: flex; align-items: center; gap: var(--cds-gap-sm); margin-top: var(--cds-gap-xs); }
+.pj .simctl input { flex: 1; accent-color: var(--color-fg); }
+.pj .play { all: unset; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--color-border-line); display: grid; place-items: center; font-size: 14px; background: var(--color-bg); }
+</style>
+
+<div class="pj">
+  <header id="topo">
+    <h1>Projeção do 2º turno 2026 — Lula x Flávio</h1>
+    <p class="lead dash-skeleton" id="takeaway" data-source="resumo">—</p>
+    <div class="stamp">Atualizado em <span id="stamp" data-source="atualizacoes">—</span> · Projeção estatística, não é pesquisa eleitoral</div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Seções">
+    <button role="tab" id="tab-projecao" aria-selected="true" data-pg="projecao">Projeção</button>
+    <button role="tab" id="tab-metodologia" aria-selected="false" data-pg="metodologia">Como funciona</button>
+  </nav>
+
+  <div class="pg" id="projecao">
+
+  <section class="card live" id="apuracao" hidden data-source="apuracao">
+    <h2><span class="dot"></span>Apuração oficial em andamento</h2>
+    <p class="note" id="apnote">—</p>
+    <div class="duel">
+      <div class="cand"><span class="name">Lula</span><span class="big" id="apL">—</span></div>
+      <div class="vs">apurado</div>
+      <div class="cand r"><span class="name">Flávio</span><span class="big" id="apF">—</span></div>
+    </div>
+    <div class="bar"><span id="apbL"></span><span id="apbF"></span><i class="mid"></i></div>
+  </section>
+
+  <section class="card" id="resultado">
+    <h2>Resultado projetado (votos válidos)</h2>
+    <div class="duel">
+      <div class="cand"><span class="name">Lula</span><span class="party">PT · 13</span>
+        <span class="big dash-skeleton" data-source="brasil" data-field="lula_pct" data-row="0">—</span>
+        <span class="votes" data-source="brasil" data-field="lula_votos" data-row="0">—</span></div>
+      <div class="vs">x</div>
+      <div class="cand r"><span class="name">Flávio Bolsonaro</span><span class="party">PL · 22</span>
+        <span class="big dash-skeleton" data-source="brasil" data-field="flavio_pct" data-row="0">—</span>
+        <span class="votes" data-source="brasil" data-field="flavio_votos" data-row="0">—</span></div>
+    </div>
+    <div class="bar" data-source="brasil"><span id="bL"></span><span id="bF"></span><i class="mid"></i></div>
+    <div class="barlab">50%</div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Chance estimada de Lula vencer</div><div class="v" data-source="resumo" data-field="chance_lula" data-row="0">—</div></div>
+      <div class="kpi"><div class="k">Chance estimada de Flávio vencer</div><div class="v" data-source="resumo" data-field="chance_flavio" data-row="0">—</div></div>
+      <div class="kpi"><div class="k">Faixa provável (80%)</div><div class="v" id="faixa" data-source="resumo" style="font-size:var(--cds-font-size-body)">—</div></div>
+      <div class="kpi"><div class="k">Diferença projetada</div><div class="v" data-source="brasil" data-field="diferenca_votos" data-row="0">—</div></div>
+      <div class="kpi"><div class="k">Abstenção projetada</div><div class="v" data-source="brasil" data-field="abstencao_pct" data-row="0">—</div></div>
+      <div class="kpi"><div class="k">Brancos + nulos</div><div class="v" data-source="brasil" data-field="brancos_nulos_pct" data-row="0">—</div></div>
+    </div>
+  </section>
+
+  <section class="card" id="simulador">
+    <h2>Simulador da apuração</h2>
+    <p class="note">Arraste ou aperte play para ver como o placar deve evoluir conforme as urnas são apuradas no domingo. A curva repete a ordem de chegada das urnas do 1º turno: as primeiras urnas, do Sul, Sudeste e Centro-Oeste, favoreceram Flávio, e Lula foi recuperando conforme entravam as do Nordeste. Ela termina exatamente no resultado projetado.</p>
+    <div class="seg" role="radiogroup" aria-label="Cenário">
+      <button role="radio" aria-checked="true" data-cen="estudo">Projeção do estudo</button>
+      <button role="radio" aria-checked="false" data-cen="criador">Opinião do criador</button>
+      <button role="radio" aria-checked="false" data-cen="ambos">Comparar os dois</button>
+    </div>
+    <div class="simnums" id="simnums" data-source="curva_apuracao">
+      <div class="sn"><div class="k" id="sn-urnas-k">Urnas apuradas</div><div class="v" id="sn-urnas">—</div></div>
+      <div class="sn"><div class="k" id="sn-a-k">Estudo · Lula x Flávio</div><div class="v" id="sn-a">—</div></div>
+      <div class="sn" id="sn-b-box" hidden><div class="k">Criador · Lula x Flávio</div><div class="v" id="sn-b">—</div></div>
+      <div class="sn" id="sn-tse-box" hidden><div class="k">TSE agora · Lula x Flávio</div><div class="v" id="sn-tse">—</div></div>
+    </div>
+    <div class="chart" id="simchart" data-source="curva_apuracao apuracao_1t apuracao"></div>
+    <div class="simctl">
+      <button id="simplay" class="play" aria-label="Reproduzir">▶</button>
+      <input type="range" id="simrange" min="0" max="100" step="0.5" value="100" aria-label="Urnas apuradas (%)">
+    </div>
+    <p class="note" id="simlive" style="margin-top:8px">—</p>
+  </section>
+
+  <section class="card" id="ingredientes">
+    <h2>Não é só uma média de pesquisas</h2>
+    <p class="note">A projeção é uma fórmula que cruza, estado por estado, todos estes elementos. <button class="linkbtn" data-pg="metodologia">Veja como cada um entra na conta</button>.</p>
+    <ul class="ing">
+      <li><b>Resultado oficial do 1º turno</b><span>Votos de cada candidato em cada uma das 27 UFs e no exterior (TSE)</span></li>
+      <li><b>Pesquisas registradas no TSE</b><span><span id="n-pesq" data-source="pesos_pesquisas">—</span> institutos, cada um com peso pelo acerto no 1º turno e pelo tamanho da amostra</span></li>
+      <li><b>Transferência dos votos dos eliminados</b><span>Para onde vão os eleitores de Cury, Renan Santos, Caiado e Zema, segundo cinco institutos</span></li>
+      <li><b>Comportamento do eleitor</b><span>Quem repete o voto, quem troca de lado e quem volta a votar depois de faltar ou anular</span></li>
+      <li><b>Eleitor provável</b><span>Quem faltou no 1º turno tende a faltar de novo; a fórmula retira esse grupo das pesquisas</span></li>
+      <li><b>Abstenção, brancos e nulos</b><span>Calculados por estado, com mais mobilização onde há 2º turno para governador</span></li>
+      <li><b>Histórico de erros das pesquisas</b><span>Quanto cada instituto errou no 1º turno de 2026 e quanto as pesquisas de véspera erraram desde 2014</span></li>
+      <li><b>Padrões das eleições desde 1989</b><span>Minas Gerais como termômetro, vitória de quem lidera o 1º turno, mapa regional estável desde 2006</span></li>
+      <li><b>Cenário atual e tendência</b><span>Movimento das pesquisas na última semana, com ajuste pela inércia recente</span></li>
+      <li><b>Efeito de fatos recentes</b><span>Debates, notícias e apoios entram pelo impacto que causam nas pesquisas mais novas, atualizadas automaticamente</span></li>
+      <li><b>Incerteza estatística</b><span>Chance de vitória e faixa provável, calibradas pelo erro histórico</span></li>
+    </ul>
+  </section>
+
+  <section class="card" id="comparativo-sec">
+    <h2>1º turno x projeção do 2º turno</h2>
+    <p class="note">Resultado oficial de 4/10 (TSE) ao lado da projeção. No 1º turno os válidos incluem os outros 10 candidatos; no 2º, só os dois. Nas tabelas por estado e região, os votos do 1º turno são estimados a partir dos percentuais de cada UF.</p>
+    <div class="scroll" style="max-height:none">
+    <table data-source="comparativo" data-row-key="item">
+      <thead><tr><th data-field="item">Indicador</th><th data-field="primeiro_turno">1º turno (oficial)</th><th data-field="projecao">Projeção</th><th data-field="variacao">Variação</th><th class="xs-hide" data-field="percepcao_criador">Opinião do criador</th></tr></thead>
+      <tbody id="cbody"></tbody>
+    </table>
+    </div>
+    <h2 style="margin-top:var(--cds-gap-lg)">Vantagem por estado: 1º turno → projeção</h2>
+    <p class="note">Diferença entre os dois, em pontos dos votos válidos. Ponto vazio = 1º turno; ponto cheio = projeção. Para a esquerda, vantagem de Lula; para a direita, de Flávio.</p>
+    <div class="chart" id="dumbbell" data-source="estados"></div>
+  </section>
+
+  <div class="grid">
+    <section class="card" id="mapa">
+      <h2>Mapa por estado</h2>
+      <p class="note">Cada quadrado é uma UF; a cor mostra quem lidera e por quanto. Toque para ver os números.</p>
+      <div class="tiles chart" id="tiles" data-source="estados"></div>
+      <div class="legend"><span>Lula +40</span><span class="ramp" id="ramp"></span><span>Flávio +40</span></div>
+    </section>
+    <section class="card" id="regioes">
+      <h2>Por região</h2>
+      <p class="note">Votos válidos projetados e diferença entre os candidatos.</p>
+      <table data-source="regioes" data-row-key="regiao">
+        <thead><tr><th data-field="regiao">Região</th><th data-field="lula_pct">Lula</th><th data-field="flavio_pct">Flávio</th><th data-field="diferenca_votos">Diferença</th><th class="xs-hide" data-field="diferenca_1t_votos">Dif. 1º turno</th><th class="xs-hide" data-field="abstencao_pct">Abst.</th></tr></thead>
+        <tbody id="regbody"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <section class="card" id="estados-sec">
+    <h2>Por estado</h2>
+    <p class="note">Toque no título de uma coluna para ordenar. Eleitorado por UF estimado a partir do TSE (exceto SP e MG, oficiais).</p>
+    <input type="search" id="busca" placeholder="Buscar estado ou região" aria-label="Buscar estado">
+    <div class="scroll">
+      <table id="tabestados" data-source="estados" data-row-key="estado">
+        <thead><tr>
+          <th data-field="estado"><button data-k="estado">Estado</button></th>
+          <th data-field="lula_pct"><button data-k="lula_pct">Lula</button></th>
+          <th data-field="flavio_pct"><button data-k="flavio_pct">Flávio</button></th>
+          <th class="xs-hide" data-field="lula_votos"><button data-k="lula_votos">Votos Lula</button></th>
+          <th class="xs-hide" data-field="flavio_votos"><button data-k="flavio_votos">Votos Flávio</button></th>
+          <th data-field="vencedor"><button data-k="vencedor">Projeção</button></th>
+          <th class="xs-hide" data-field="lula_1t_pct"><button data-k="lula_1t_pct">Lula 1º t.</button></th>
+          <th class="xs-hide" data-field="flavio_1t_pct"><button data-k="flavio_1t_pct">Flávio 1º t.</button></th>
+          <th class="xs-hide" data-field="abstencao_pct"><button data-k="abstencao_pct">Abst.</button></th>
+          <th class="xs-hide" data-field="brancos"><button data-k="brancos">Brancos</button></th>
+          <th class="xs-hide" data-field="nulos"><button data-k="nulos">Nulos</button></th>
+        </tr></thead>
+        <tbody id="estbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card" id="pesquisas-sec">
+      <h2>Pesquisas registradas</h2>
+      <p class="note">Votos válidos de cada candidato em cada pesquisa. Os institutos estão em ordem de peso na média (acerto no 1º turno e tamanho da amostra); a primeira barra é a média ponderada.</p>
+      <div class="chart" id="pchart" data-source="pesos_pesquisas"></div>
+    </section>
+    <section class="card" id="transf-sec">
+      <h2>Para onde vão os votos dos eliminados</h2>
+      <p class="note">Média de Quaest, AtlasIntel, Meio/Ideia, Palver e Datafolha, ponderada pela subamostra e pelo acerto no 1º turno.</p>
+      <table data-source="matriz" data-row-key="grupo">
+        <thead><tr><th data-field="grupo">Eleitor do 1º turno</th><th data-field="lula">Lula</th><th data-field="flavio">Flávio</th><th data-field="fontes">Fontes</th></tr></thead>
+        <tbody id="mbody"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section class="card" id="ajustes">
+      <h2>Como chegamos ao número</h2>
+      <p class="note">Média, com pesos iguais, de dois métodos independentes.</p>
+      <table data-source="resumo">
+        <tbody>
+          <tr><td>Modelo de transferência (estado a estado)</td><td data-source="resumo" data-field="modelo_transferencia" data-row="0">—</td></tr>
+          <tr><td>Média ponderada das pesquisas</td><td data-source="resumo" data-field="media_pesquisas" data-row="0">—</td></tr>
+          <tr><td>+ Ajuste de eleitor provável</td><td data-source="resumo" data-field="ajuste_eleitor_provavel" data-row="0">—</td></tr>
+          <tr><td>+ Correção do viés de cada instituto</td><td data-source="resumo" data-field="correcao_institutos" data-row="0">—</td></tr>
+          <tr><td>+ Tendência recente</td><td data-source="resumo" data-field="tendencia" data-row="0">—</td></tr>
+          <tr><td>= Pesquisas ajustadas</td><td data-source="resumo" data-field="pesquisas_ajustadas" data-row="0">—</td></tr>
+          <tr><td><b>Projeção final (Flávio)</b></td><td data-source="resumo" data-field="flavio_final" data-row="0">—</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="card" id="historia">
+      <h2>O que a história mostra</h2>
+      <p class="note">Segundos turnos desde 1989. Abstenção de 2002–2010 aproximada.</p>
+      <table data-source="historico" data-row-key="ano">
+        <thead><tr><th data-field="ano">Ano</th><th data-field="vencedor">Vencedor</th><th data-field="validos_vencedor">Válidos</th><th data-field="venceu_em_mg">Venceu MG</th><th class="xs-hide" data-field="abstencao_2t">Abst. 2º t.</th></tr></thead>
+        <tbody id="hbody"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <section class="card" id="metodo">
+    <div class="warn">
+      <p style="margin:0">Esta página é uma <b>projeção estatística</b> feita com dados públicos: o resultado oficial do 1º turno e pesquisas registradas no TSE. Não é pesquisa eleitoral e não entrevistou ninguém. A faixa de 80% mostra onde o resultado deve cair na maioria dos casos, não sempre.</p>
+    </div>
+    <p class="note" style="margin:12px 0 0">Como os dados são captados, pesados, cruzados e atualizados: <button class="linkbtn" data-pg="metodologia">veja a aba Como funciona</button>.</p>
+  </section>
+
+  <section class="card" id="percepcao-sec">
+    <h2>Opinião do criador do projeto</h2>
+    <p class="note"><b>Isto não é resultado do modelo.</b> É a opinião pessoal de quem criou a página: que os dados ainda subestimam Flávio. Por isso ele soma, por conta própria, <span data-source="percepcao" data-field="ajuste_pp" data-row="0">—</span> a Flávio e tira o mesmo de Lula sobre a projeção. Chance, faixa, mapa e tabelas não usam esta opinião.</p>
+    <div class="duel">
+      <div class="cand"><span class="name">Lula</span>
+        <span class="big dash-skeleton" data-source="percepcao" data-field="lula_pct" data-row="0">—</span>
+        <span class="votes" data-source="percepcao" data-field="lula_votos" data-row="0">—</span></div>
+      <div class="vs">x</div>
+      <div class="cand r"><span class="name">Flávio Bolsonaro</span>
+        <span class="big dash-skeleton" data-source="percepcao" data-field="flavio_pct" data-row="0">—</span>
+        <span class="votes" data-source="percepcao" data-field="flavio_votos" data-row="0">—</span></div>
+    </div>
+    <div class="bar" data-source="percepcao"><span id="pL"></span><span id="pF"></span><i class="mid"></i></div>
+    <div class="barlab">Diferença na opinião do criador: <span style="margin-left:4px" data-source="percepcao" data-field="diferenca_votos" data-row="0">—</span></div>
+  </section>
+
+  <section class="card" id="log">
+    <h2>Atualizações</h2>
+    <table data-source="atualizacoes" data-row-key="data"><thead><tr><th data-field="data">Quando</th><th data-field="texto" style="text-align:left">O que mudou</th></tr></thead><tbody id="lbody"></tbody></table>
+  </section>
+  </div>
+
+  <div class="pg" id="metodologia" hidden>
+    <section class="card" id="m-faq">
+      <h2>Perguntas frequentes</h2>
+      <p class="note">Respostas curtas. Os detalhes de cada cálculo estão nas seções numeradas abaixo.</p>
+      <div class="faq">
+        <details><summary>Isto é uma pesquisa eleitoral?</summary><p>Não. Ninguém foi entrevistado para esta página. É uma projeção estatística que usa o resultado oficial do 1º turno e pesquisas já registradas no TSE por institutos, cujos números de registro estão listados nas fontes.</p></details>
+        <details><summary>Qual a diferença para um agregador de pesquisas?</summary><p>Um agregador faz a média das pesquisas. Aqui a média é só metade da conta. A outra metade é um modelo que parte dos votos reais do 1º turno, estado por estado, e redistribui os votos dos candidatos eliminados. As pesquisas também são ajustadas pelo histórico de acerto de cada instituto e por quem deve realmente votar. Os dois métodos são combinados no final.</p></details>
+        <details><summary>Por que a projeção aponta um favorito se as pesquisas falam em empate técnico?</summary><p>"Empate técnico" significa que a diferença de uma pesquisa cabe na margem de erro dela. Quando várias pesquisas independentes mostram o mesmo candidato numericamente à frente, a chance de isso ser acaso diminui. Hoje esse candidato é Flávio; se as pesquisas virarem, a projeção vira junto. Por isso a página mostra a chance de cada um, e não uma certeza.</p></details>
+        <details><summary>O que quer dizer a "chance de vitória"?</summary><p>É a probabilidade estimada de cada candidato vencer, considerando o erro histórico das pesquisas e do modelo. Uma chance de 80% significa que, em cinco eleições com este mesmo cenário, o favorito perderia uma. É alta, mas está longe de ser garantia.</p></details>
+        <details><summary>A projeção pode errar? Quanto?</summary><p>Pode. A faixa provável mostra onde o resultado deve cair em 8 de cada 10 casos. Em segundos turnos recentes, as pesquisas de véspera erraram entre 0,1 e 1,1 ponto; a faixa usada aqui é mais larga para cobrir também o erro do próprio modelo.</p></details>
+        <details><summary>A fórmula favorece algum candidato?</summary><p>Não de propósito: cada ajuste vem de um dado medido, e eles apontam em direções diferentes. Dois favorecem Flávio: a correção pelo erro de cada instituto (nas últimas eleições e no 1º turno de 2026, as pesquisas subestimaram o candidato de direita) e o eleitor provável (quem falta às urnas tende a preferir Lula). Outros favorecem Lula: a tendência da última semana e a transferência de votos com cinco institutos, que dá a Lula mais eleitores dos eliminados do que a Quaest sozinha dava. A única parte que favorece um lado por opinião é a "opinião do criador", que fica separada e não entra em nenhum outro número.</p></details>
+        <details><summary>Por que algumas pesquisas pesam mais que outras?</summary><p>Pesa mais quem errou menos no 1º turno e quem ouviu mais gente. Nenhum instituto pode passar de 25% do peso total, para que um único acerto não decida a média. A tabela de pesos está na seção 4.</p></details>
+        <details><summary>Uma única pesquisa pode mudar muito o resultado?</summary><p>Não. Retirando qualquer instituto da conta, um por vez, a projeção nacional muda no máximo cerca de 0,1 ponto. A transferência de votos também usa cinco fontes, e não uma.</p></details>
+        <details><summary>Notícias, debates e escândalos entram na conta?</summary><p>Entram de forma indireta. A fórmula não lê notícias, porque não há como medir o efeito de uma notícia sem perguntar aos eleitores. Quando um fato muda votos, isso aparece nas pesquisas seguintes, que a página incorpora automaticamente várias vezes por dia. O ajuste de tendência também capta o movimento da última semana.</p></details>
+        <details><summary>Para onde vão os votos de Cury, Renan Santos e Caiado?</summary><p>Segundo a média de cinco institutos, os eleitores de Caiado e de Renan vão em maioria para Flávio, e os de Cury pendem para Lula. Uma parte de cada grupo deve anular ou não votar. A tabela completa está na aba Projeção.</p></details>
+        <details><summary>E se muita gente deixar de votar, ou se a abstenção cair?</summary><p>O efeito é menor do que parece. Quem entra ou sai da urna não é muito desequilibrado entre os candidatos. Nas simulações, mudar a abstenção em 1,5 ponto mexe no resultado nacional só 0,1 a 0,2 ponto. Em geral, abstenção maior favorece um pouco Flávio, porque quem costuma faltar tende a preferir Lula.</p></details>
+        <details><summary>Por que Minas Gerais é tão observada?</summary><p>Desde 1989, quem venceu em Minas venceu o Brasil. Não é mágica: Minas é o estado mais parecido com a média do país em renda, região e religião. A projeção não força esse resultado, mas o usa como checagem: se Minas e o Brasil apontassem vencedores diferentes, seria sinal de alerta.</p></details>
+        <details><summary>Por que o Amapá aparece como empate técnico?</summary><p>No 1º turno Lula e Flávio ficaram praticamente iguais no estado, e o Amapá teve a maior votação de Augusto Cury, cujo eleitor pende para Lula. A diferença projetada é menor que 1 ponto, então a página não aponta vencedor.</p></details>
+        <details><summary>Os números por estado são tão confiáveis quanto o nacional?</summary><p>Não. Não há pesquisas de 2º turno para presidente em todos os estados, então a margem por estado é de cerca de ±3 pontos. O eleitorado de cada UF, exceto SP e MG, também é estimado. Use os estados para ver tendências, não diferenças de poucos milhares de votos.</p></details>
+        <details><summary>Por que os votos do 1º turno por estado diferem um pouco do TSE?</summary><p>Nas tabelas por estado, os votos do 1º turno são reconstruídos a partir dos percentuais arredondados de cada UF. A diferença é de algumas dezenas de milhares no total. Na tabela nacional "1º turno x projeção", os números são os oficiais exatos.</p></details>
+        <details><summary>O que é a "opinião do criador"?</summary><p>É a opinião pessoal de quem criou o projeto: que os dados ainda subestimam Flávio. Ela aparece separada, soma pontos a Flávio e tira de Lula sobre a projeção, e não altera a chance, a faixa, o mapa nem as tabelas. Todo o resto da página vem só dos dados.</p></details>
+        <details><summary>Com que frequência a página é atualizada?</summary><p>Três vezes por dia até sábado (8h41, 13h41 e 21h41) e na manhã de domingo. No domingo, a partir das 17h07, a apuração oficial é lançada a cada meia hora e aparece no simulador da apuração. Cada atualização fica registrada em "Atualizações", no fim da aba Projeção.</p></details>
+        <details><summary>Como funciona o simulador da apuração?</summary><p>Ele parte de como a contagem andou no 1º turno: Flávio abriu com mais de 55% dos votos dos dois porque as urnas do Sul, Sudeste e Centro-Oeste chegaram antes, e foi caindo conforme entravam as do Nordeste. O simulador aplica esse mesmo desvio, momento a momento, ao resultado projetado, e por isso termina exatamente na projeção aos 100%. No domingo, os números do TSE aparecem na mesma porcentagem de urnas. Se a apuração estiver acima ou abaixo da curva, a página calcula para onde isso aponta no final. A premissa é que a ordem de chegada das urnas se repita; se mudar, a comparação perde precisão.</p></details>
+        <details><summary>Por que a apuração do começo da noite pode ser diferente da projeção?</summary><p>As urnas não chegam todas ao mesmo tempo. Em geral, Sul, Sudeste e Centro-Oeste são contados antes, e o Nordeste depois. Em 2022 a liderança só mudou com cerca de dois terços das urnas apuradas. Compare a projeção com a apuração só quando ela estiver perto do fim.</p></details>
+        <details><summary>Posso conferir os dados e as contas?</summary><p>Sim. O botão Fontes, no topo da página, mostra cada fonte de dados, de onde veio, quando foi atualizada, e permite baixar as linhas em CSV. As fórmulas estão nas seções abaixo, e cada cálculo pode ser aberto nas fontes.</p></details>
+      </div>
+    </section>
+
+    <section class="card" id="m-visao">
+      <h2>Visão geral</h2>
+      <p class="note">A projeção junta dois métodos independentes e tira a média. Cada caixa mostra o resultado atual daquela etapa para Flávio, em votos válidos.</p>
+      <div class="flow">
+        <div class="fbox"><b>1. Dados públicos</b><span>1º turno oficial por UF, pesquisas registradas, matrizes de transferência, histórico</span></div>
+        <div class="farrow">→</div>
+        <div class="fcol">
+          <div class="fbox"><b>2a. Modelo de transferência</b><span>Soma estado a estado os votos do 1º turno e redistribui os dos eliminados</span><em data-source="resumo" data-field="modelo_transferencia" data-row="0">—</em></div>
+          <div class="fbox"><b>2b. Pesquisas ajustadas</b><span>Média ponderada + eleitor provável + correção por instituto + tendência</span><em data-source="resumo" data-field="pesquisas_ajustadas" data-row="0">—</em></div>
+        </div>
+        <div class="farrow">→</div>
+        <div class="fbox"><b>3. Combinação</b><span>Média dos dois métodos</span><em data-source="resumo" data-field="flavio_final" data-row="0">—</em></div>
+        <div class="farrow">→</div>
+        <div class="fbox"><b>4. Estados, regiões, chance</b><span>Distribui o nacional entre as UFs e calcula a incerteza</span></div>
+      </div>
+      <p class="lead">Nada é digitado à mão na tela: cada número da aba Projeção é recalculado no navegador a partir das fontes de dados sempre que a página abre. Quando uma fonte é atualizada, todos os números mudam juntos. As fontes podem ser conferidas e baixadas em <b>Fontes</b>, no topo da página.</p>
+    </section>
+
+    <section class="card" id="m-captacao">
+      <h2>1. Como os dados são captados</h2>
+      <p class="note">Só entram dados públicos e verificáveis. Pesquisas só entram com número de registro no TSE, e os números são conferidos na reportagem original, não em resumos de busca.</p>
+      <div class="scroll" style="max-height:none"><table class="wrap">
+        <thead><tr><th>Dado</th><th>Fonte</th><th>O que é extraído</th><th>Atualização</th></tr></thead>
+        <tbody>
+          <tr><td>Resultado do 1º turno por UF</td><td>TSE, totalização final de 5/10, via portal Apuração Eleição</td><td>Percentual de cada candidato, comparecimento e brancos/nulos em cada UF</td><td>Fixo</td></tr>
+          <tr><td>Totais nacionais do 1º turno</td><td>TSE</td><td>Votos de Lula e Flávio, válidos, brancos, nulos, comparecimento, eleitorado</td><td>Fixo</td></tr>
+          <tr><td>Eleitorado por UF</td><td>TSE</td><td>Oficial de 2026 para SP e MG; nas demais UFs, a distribuição de 2022 ajustada ao total oficial de 2026</td><td>Fixo</td></tr>
+          <tr><td>Pesquisas do 2º turno</td><td>Reportagens que publicam pesquisas registradas (Poder360, Folha, Estadão, CNN, Exame, InfoMoney e outros)</td><td>Votos válidos de Flávio, entrevistas, datas e registro. Só a mais recente de cada instituto</td><td>Automática, 3 vezes por dia até 24/10 e na manhã de 25/10</td></tr>
+          <tr><td>Transferência de votos</td><td>Quaest, AtlasIntel, Meio/Ideia, Palver e Datafolha</td><td>Como votam no 2º turno os eleitores de Cury, Renan, Caiado, Zema e quem faltou ou anulou</td><td>Junto com as pesquisas</td></tr>
+          <tr><td>Acerto de cada instituto no 1º turno</td><td>Rankings de Times Brasil e Congresso em Foco</td><td>Erro acumulado nos percentuais e erro na diferença entre os dois primeiros</td><td>Fixo</td></tr>
+          <tr><td>Histórico 1989–2022</td><td>TSE e reportagens</td><td>Vencedores, votos válidos, abstenção, erros de pesquisas de véspera</td><td>Fixo</td></tr>
+          <tr><td>Apuração do 2º turno</td><td>TSE (resultados.tse.jus.br) ou veículos que reproduzem o TSE</td><td>Percentual de urnas apuradas e votos válidos, nacional e por UF</td><td>A cada meia hora em 25/10, das 17h às 23h37</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="card" id="m-base">
+      <h2>2. Base: o 1º turno estado a estado</h2>
+      <p class="lead">Para cada UF, o modelo parte de quantas pessoas votaram em cada candidato no 1º turno. Os votos válidos de cada UF são o comparecimento menos brancos e nulos; a abstenção de cada UF segue o padrão de 2022, calibrada para que a soma bata com o total oficial de 2026. Para o 2º turno, a abstenção de cada UF muda conforme a tabela abaixo, e brancos e nulos sobem <span class="pv" data-source="premissas" data-where="parametro=brancos_nulos_extra_pp" data-field="valor" data-fmt="pp">—</span>, porque parte dos eleitores de Renan e Caiado diz que vai anular.</p>
+      <table data-source="base_1t" style="margin-top:12px">
+        <thead><tr><th>Variação da abstenção no 2º turno</th><th style="text-align:left">UFs</th></tr></thead>
+        <tbody id="m-abst"></tbody>
+      </table>
+      <p class="note" style="margin-top:8px">Racional: no Nordeste a abstenção caiu no 2º turno de 2022; nas 6 UFs com 2º turno para governador, a disputa local mobiliza mais. Simulações mostraram que mudar o comparecimento em ±1,5 ponto move o resultado nacional só 0,1 a 0,2 ponto.</p>
+    </section>
+
+    <section class="card" id="m-transf">
+      <h2>3. Modelo de transferência de votos</h2>
+      <p class="lead">Em cada UF, os votos do 2º turno são calculados assim:</p>
+      <pre class="formula">Flávio₂ = Flávio₁ × lealdade + Lula₁ × troca
+        + Σ (votos de cada eliminado × parcela que vai para Flávio)
+        + novos eleitores × parcela dos faltosos que vai para Flávio
+
+novos eleitores = abstencionistas₁ × taxa de retorno + brancos/nulos₁ × taxa de escolha</pre>
+      <p class="lead">Lula₂ segue a mesma conta, com as parcelas dele. Hoje: lealdade <span class="pv" data-source="premissas" data-where="parametro=lealdade" data-field="valor" data-fmt="pct">—</span>, troca de lado <span class="pv" data-source="premissas" data-where="parametro=troca" data-field="valor" data-fmt="pct">—</span> nos dois sentidos, retorno de abstencionistas <span class="pv" data-source="premissas" data-where="parametro=novos_abstencionistas" data-field="valor" data-fmt="pct">—</span>, escolha de quem anulou <span class="pv" data-source="premissas" data-where="parametro=novos_brancos_nulos" data-field="valor" data-fmt="pct">—</span>.</p>
+      <h3>Como as fontes de transferência são combinadas</h3>
+      <pre class="formula">peso de uma fonte no grupo = √subamostra ÷ (erro do instituto no 1º turno + 2)</pre>
+      <p class="lead">Subamostras pequenas (às vezes 15 a 60 entrevistas) têm margem de erro enorme, por isso pesam menos; institutos que erraram menos no 1º turno pesam mais. O Datafolha só publicou Cury, Renan e Caiado juntos; esse agregado entra com peso de <span class="pv" data-source="premissas" data-where="parametro=peso_datafolha" data-field="valor" data-fmt="pct">—</span>, reescalando os três grupos. Zema, esquerda e "outros" usam premissas de espectro político quando faltam dados.</p>
+      <div class="scroll" style="max-height:24rem"><table data-source="transferencias" data-row-key="fonte,grupo">
+        <thead><tr><th data-field="fonte">Fonte</th><th data-field="grupo">Grupo</th><th data-field="lula_pct">Lula</th><th data-field="flavio_pct">Flávio</th><th data-field="subamostra">Subamostra</th><th class="xs-hide" data-field="erro_1t">Erro 1º t.</th></tr></thead>
+        <tbody id="m-tbody"></tbody>
+      </table></div>
+      <p class="lead">Resultado deste método: Flávio com <b data-source="resumo" data-field="modelo_transferencia" data-row="0">—</b> dos válidos.</p>
+    </section>
+
+    <section class="card" id="m-pesos">
+      <h2>4. Média das pesquisas: como os pesos são dados</h2>
+      <pre class="formula">peso bruto = 1 ÷ (erro acumulado no 1º turno + 2) × mínimo(√(entrevistas ÷ 2000), 2)
+peso final = peso bruto ÷ soma dos pesos brutos, com teto por instituto</pre>
+      <ul class="lead">
+        <li><b>Acerto no 1º turno</b> é o principal critério: quem errou menos pesa mais. O "+2" impede que um único acerto quase perfeito tenha peso infinito.</li>
+        <li><b>Tamanho da amostra</b> entra pela raiz quadrada, porque é assim que o erro aleatório cai. O limite de 2 (8 mil entrevistas) evita que amostra grande compense metodologia fraca.</li>
+        <li><b>Teto de <span class="pv" data-source="premissas" data-where="parametro=teto_peso_instituto" data-field="valor" data-fmt="pct">—</span> por instituto:</b> nenhum instituto sozinho decide a média. O excedente é redistribuído proporcionalmente aos demais.</li>
+        <li>Institutos sem histórico no ranking recebem erro presumido de <span class="pv" data-source="premissas" data-where="parametro=erro_sem_historico" data-field="valor" data-fmt="num">—</span> pontos.</li>
+      </ul>
+      <div class="scroll" style="max-height:28rem"><table data-source="pesos_pesquisas" data-row-key="instituto">
+        <thead><tr><th data-field="instituto">Instituto</th><th data-field="flavio_validos">Lula x Flávio</th><th class="xs-hide" data-field="entrevistas">Entrevistas</th><th data-field="erro_usado">Erro 1º t.</th><th class="xs-hide" data-field="peso_sem_teto">Peso sem teto</th><th data-field="peso">Peso</th></tr></thead>
+        <tbody id="m-pbody"></tbody>
+      </table></div>
+      <p class="lead">Média ponderada: Flávio com <b data-source="resumo" data-field="media_pesquisas" data-row="0">—</b> dos válidos.</p>
+    </section>
+
+    <section class="card" id="m-ajustes">
+      <h2>5. Ajustes sobre a média das pesquisas</h2>
+      <h3>a) Eleitor provável (likely voter)</h3>
+      <p class="lead">As pesquisas ouvem o eleitorado inteiro, mas parte dele não vai votar. Quem faltou ou anulou no 1º turno prefere Lula (Quaest e AtlasIntel) e tende a faltar de novo. O modelo retira esse grupo na proporção em que deve faltar:</p>
+      <pre class="formula">a = parcela das amostras que faltou ou anulou no 1º turno
+t = parcela desse grupo que deve votar no 2º turno
+F_faltosos = % de Flávio entre eles (válidos)
+F_votantes = (média − a × F_faltosos) ÷ (1 − a)
+F_provável = [(1 − a) × F_votantes + a × t × F_faltosos] ÷ [(1 − a) + a × t]</pre>
+      <p class="lead">Hoje a = <span class="pv" data-source="premissas" data-where="parametro=faltosos_na_amostra" data-field="valor" data-fmt="pct">—</span> e t = <span class="pv" data-source="premissas" data-where="parametro=comparecimento_faltosos" data-field="valor" data-fmt="pct">—</span>. Efeito: <b data-source="resumo" data-field="ajuste_eleitor_provavel" data-row="0">—</b>.</p>
+      <h3>b) Correção pelo viés de cada instituto</h3>
+      <p class="lead">No 1º turno, quase todos os institutos subestimaram Flávio. Cada pesquisa recebe uma fração do erro que o próprio instituto teve na diferença entre os candidatos. A fração é pequena (<span class="pv" data-source="premissas" data-where="parametro=fracao_correcao_instituto" data-field="valor" data-fmt="pct">—</span> do viés, em participação) por dois motivos: boa parte do erro do 1º turno veio do voto útil de última hora, que não existe num 2º turno com dois nomes; e o ajuste de eleitor provável já captura parte do mesmo efeito. Efeito: <b data-source="resumo" data-field="correcao_institutos" data-row="0">—</b>.</p>
+      <h3>c) Tendência recente</h3>
+      <p class="lead">Datafolha, Quaest e Veritá mostraram Lula encurtando a distância na última semana. O modelo desconta essa inércia: <b data-source="resumo" data-field="tendencia" data-row="0">—</b>.</p>
+      <p class="lead">Pesquisas ajustadas: <b data-source="resumo" data-field="pesquisas_ajustadas" data-row="0">—</b>.</p>
+    </section>
+
+    <section class="card" id="m-comb">
+      <h2>6. Como os métodos são cruzados</h2>
+      <pre class="formula">projeção nacional = peso_modelo × transferência + (1 − peso_modelo) × pesquisas ajustadas</pre>
+      <p class="lead">Com peso_modelo = <span class="pv" data-source="premissas" data-where="parametro=peso_modelo" data-field="valor" data-fmt="pct">—</span>, os dois métodos valem o mesmo. A transferência tem a vantagem de usar votos reais do 1º turno, estado por estado; as pesquisas captam mudanças de opinião depois do 1º turno. Cada um corrige o ponto cego do outro. Resultado: <b data-source="resumo" data-field="flavio_final" data-row="0">—</b>.</p>
+      <h3>Dos números nacionais para os estados</h3>
+      <p class="lead">O modelo de transferência dá uma divisão Flávio/Lula para cada UF. Essa divisão é deslocada pelo mesmo valor em todas as UFs, em escala logística, até que a soma nacional bata com a projeção. A escala logística evita resultados impossíveis (abaixo de 0% ou acima de 100%) e faz estados muito polarizados mudarem menos que os equilibrados, como acontece na prática.</p>
+      <pre class="formula">log(p ÷ (1 − p)) da UF = log(p₀ ÷ (1 − p₀)) + d,   com d igual para todas as UFs
+votos de Flávio na UF = válidos projetados × p</pre>
+      <p class="lead">Brancos e nulos são separados na proporção do 2º turno de 2022 (<span class="pv" data-source="premissas" data-where="parametro=parcela_brancos" data-field="valor" data-fmt="pct">—</span> brancos). Regiões e Brasil são somas das UFs, e por isso válidos + brancos + nulos + abstenção sempre fecham com o eleitorado.</p>
+    </section>
+
+    <section class="card" id="m-incerteza">
+      <h2>7. Incerteza, chance e faixa</h2>
+      <pre class="formula">chance de Flávio = Φ((projeção − 50) ÷ σ)
+faixa de 80% = projeção ± 1,28 × σ</pre>
+      <p class="lead">Φ é a distribuição normal acumulada. σ = <span class="pv" data-source="premissas" data-where="parametro=desvio_padrao" data-field="valor" data-fmt="num">—</span> pontos combina o erro típico de pesquisas de véspera no 2º turno com o erro do próprio modelo. Hoje: chance de <b data-source="resumo" data-field="chance_flavio" data-row="0">—</b>; faixa de <b id="m-faixa" data-source="resumo">—</b>. "Chance de 80%" significa que, em cinco eleições com este cenário, Flávio perderia uma.</p>
+    </section>
+
+    <section class="card" id="m-historia">
+      <h2>8. Questões históricas consideradas</h2>
+      <p class="note">Pesquisas de véspera comparadas ao resultado, para o candidato de direita, em votos válidos.</p>
+      <table data-source="erros_historicos" data-row-key="eleicao,instituto">
+        <thead><tr><th data-field="eleicao">Eleição</th><th data-field="instituto">Pesquisa</th><th class="xs-hide" data-field="candidato">Candidato</th><th data-field="previsto_validos">Previsto</th><th data-field="resultado_validos">Resultado</th><th>Erro</th></tr></thead>
+        <tbody id="m-ebody"></tbody>
+      </table>
+      <ul class="lead" style="margin-top:12px">
+        <li><b>Viés à direita, pequeno no 2º turno, grande no 1º.</b> No 1º turno o erro chega a vários pontos, sobretudo por voto útil de última hora. No 2º turno o erro médio recente é de cerca de meio ponto. Por isso o modelo corrige pouco, e não pelo erro do 1º turno.</li>
+        <li><b>Minas Gerais acompanhou o vencedor em todas as eleições desde 1989.</b> Não é causa, é espelho: Minas é o estado mais parecido com a média do país. O modelo não força esse resultado; ele é usado como checagem de coerência. Se a projeção de Minas e a nacional apontassem vencedores diferentes, seria sinal de alerta.</li>
+        <li><b>Quem liderou o 1º turno venceu todos os sete 2º turnos desde 1989.</b> Também é checagem, não regra do modelo.</li>
+        <li><b>Abstenção</b> subiu do 1º para o 2º turno em 6 dos 7 segundos turnos; só caiu em 2022. Como o efeito no resultado é pequeno, o modelo usa abstenção praticamente estável (ver seção 2).</li>
+        <li><b>Mapa regional estável desde 2006</b>: Nordeste com o PT, Sul e Centro-Oeste com a direita, Sudeste decidindo. Isso justifica deslocar todas as UFs pelo mesmo valor.</li>
+      </ul>
+    </section>
+
+    <section class="card" id="m-percepcao">
+      <h2>9. Opinião do criador</h2>
+      <p class="lead">É um cenário de opinião, separado do modelo: soma <span class="pv" data-source="premissas" data-where="parametro=percepcao_criador_pp" data-field="valor" data-fmt="pp">—</span> a Flávio e tira o mesmo de Lula, sobre a projeção dos dados. Não altera chance, faixa, mapa nem tabelas.</p>
+    </section>
+
+    <section class="card" id="m-atualizacao">
+      <h2>10. Como a plataforma se atualiza</h2>
+      <ol class="lead">
+        <li>Uma tarefa agendada roda às 8h41, 13h41 e 21h41 de 22 a 24/10 e às 9h07 de 25/10. Ela busca pesquisas novas registradas no TSE e novas matrizes de transferência, confere os números na reportagem e substitui a pesquisa anterior do mesmo instituto.</li>
+        <li>Ela só troca as fontes de dados (pesquisas, transferências, apuração). A base do 1º turno, o histórico, as premissas e o código da página não mudam.</li>
+        <li>Ao abrir a página, todo o cálculo das seções 3 a 7 roda de novo com os dados novos.</li>
+        <li>No domingo, das 17h07 às 23h37, a cada meia hora, a tarefa lança a apuração oficial. Ela aparece num quadro próprio e no simulador da apuração, ao lado das curvas do estudo e do criador, na mesma porcentagem de urnas.</li>
+        <li>Cada atualização fica registrada em "Atualizações", no fim da aba Projeção.</li>
+      </ol>
+    </section>
+
+    <section class="card" id="m-premissas">
+      <h2>11. Todas as premissas</h2>
+      <p class="note">Valores escolhidos pelo analista. Mudar qualquer um recalcula a página inteira.</p>
+      <table class="wrap" data-source="premissas" data-row-key="parametro">
+        <thead><tr><th data-field="parametro">Parâmetro</th><th data-field="valor">Valor</th><th data-field="descricao" style="text-align:left">O que significa</th></tr></thead>
+        <tbody id="m-prbody"></tbody>
+      </table>
+    </section>
+
+    <section class="card" id="m-limites">
+      <h2>12. Limites</h2>
+      <ul class="lead">
+        <li>O eleitorado de cada UF, exceto SP e MG, é estimado; votos absolutos por estado podem variar alguns décimos.</li>
+        <li>As transferências usam o mesmo padrão em todas as UFs; na prática, eleitores de Caiado em Goiás podem se comportar diferente dos de outros estados.</li>
+        <li>Não há pesquisas estaduais de 2º turno para presidente em todas as UFs, então a margem de erro por estado (cerca de ±3 pontos) é maior que a nacional.</li>
+        <li>O modelo não capta fatos dos últimos dias (debates, denúncias, clima no dia da votação) até que apareçam nas pesquisas.</li>
+        <li>Pesquisas podem errar todas na mesma direção. A faixa de 80% inclui esse risco, mas não o elimina.</li>
+      </ul>
+    </section>
+
+  </div>
+</div>
+
+<script>
+const P = (premissas) => Object.fromEntries(premissas.map((r) => [r.parametro, Number(r.valor)]));
+window.pjParams = P;
+
+dash.calc('pesos_pesquisas', {
+  title: 'Peso de cada pesquisa',
+  description: 'Peso = 1/(erro no 1º turno + 2) × raiz(amostra/2000), com teto por instituto.',
+  inputs: ['pesquisas', 'premissas'],
+  fn: (pesquisas, premissas) => {
+    const p = Object.fromEntries(premissas.map((r) => [r.parametro, Number(r.valor)]));
+    const rows = pesquisas.map((r) => {
+      const erro = r.erro_1t == null ? p.erro_sem_historico : Number(r.erro_1t);
+      const vies = r.vies_pro_lula_1t == null ? p.vies_sem_historico : Number(r.vies_pro_lula_1t);
+      return { instituto: r.instituto, divulgacao: r.divulgacao, flavio_validos: Number(r.flavio_validos), entrevistas: Number(r.entrevistas),
+        erro, vies, bruto: (1 / (erro + 2)) * Math.min(Math.sqrt(Number(r.entrevistas) / 2000), 2), correcao: vies / 2 };
+    });
+    const soma = rows.reduce((s, r) => s + r.bruto, 0);
+    let w = rows.map((r) => r.bruto / soma);
+    for (let i = 0; i < 30; i++) {
+      const excesso = w.reduce((s, x) => s + Math.max(0, x - p.teto_peso_instituto), 0);
+      if (excesso < 1e-12) break;
+      const livre = w.reduce((s, x) => s + (x < p.teto_peso_instituto ? x : 0), 0);
+      w = w.map((x) => (x >= p.teto_peso_instituto ? p.teto_peso_instituto : x + (excesso * x) / livre));
+    }
+    return rows.map((r, i) => ({ instituto: r.instituto, divulgacao: r.divulgacao, flavio_validos: r.flavio_validos, entrevistas: r.entrevistas, erro_usado: r.erro, vies_usado: r.vies, peso_sem_teto: r.bruto / soma, peso: w[i], correcao: r.correcao }));
+  },
+});
+
+dash.calc('matriz', {
+  title: 'Matriz de transferência',
+  description: 'Média ponderada das fontes por grupo; Cury, Renan e Caiado ajustados ao agregado do Datafolha.',
+  inputs: ['transferencias', 'base_1t', 'premissas'],
+  fn: (transferencias, base_1t, premissas) => {
+    const p = Object.fromEntries(premissas.map((r) => [r.parametro, Number(r.valor)]));
+    const grupos = ['cury', 'renan', 'caiado', 'zema', 'esquerda', 'outros', 'faltosos'];
+    const out = {};
+    for (const g of grupos) {
+      const rs = transferencias.filter((r) => r.grupo === g);
+      const w = rs.map((r) => Math.sqrt(Number(r.subamostra)) / (Number(r.erro_1t) + 2));
+      const W = w.reduce((a, b) => a + b, 0);
+      out[g] = { flavio: rs.reduce((s, r, i) => s + (Number(r.flavio_pct) * w[i]) / W, 0) / 100,
+                 lula: rs.reduce((s, r, i) => s + (Number(r.lula_pct) * w[i]) / W, 0) / 100,
+                 fontes: rs.map((r) => r.fonte).join(' · ') };
+    }
+    const df = transferencias.find((r) => r.grupo === 'agregado_cury_renan_caiado');
+    if (df) {
+      const tres = ['cury', 'renan', 'caiado'];
+      const votos = Object.fromEntries(tres.map((g) => [g, base_1t.reduce((s, b) => s + (Number(b.validos_1t) * Number(b[g + '_pct'])) / 100, 0)]));
+      const V = tres.reduce((s, g) => s + votos[g], 0);
+      const aggF = tres.reduce((s, g) => s + out[g].flavio * votos[g], 0) / V;
+      const aggL = tres.reduce((s, g) => s + out[g].lula * votos[g], 0) / V;
+      const tF = (1 - p.peso_datafolha) * aggF + (p.peso_datafolha * Number(df.flavio_pct)) / 100;
+      const tL = (1 - p.peso_datafolha) * aggL + (p.peso_datafolha * Number(df.lula_pct)) / 100;
+      for (const g of tres) { out[g].flavio *= tF / aggF; out[g].lula *= tL / aggL; out[g].fontes += ' · ' + df.fonte; }
+    }
+    return grupos.map((g) => ({ grupo: g, flavio: out[g].flavio, lula: out[g].lula, fontes: out[g].fontes }));
+  },
+});
+
+dash.calc('bruto', {
+  title: 'Modelo de transferência por UF',
+  description: 'Votos do 1º turno + transferências + novos eleitores, antes do ajuste às pesquisas.',
+  inputs: ['base_1t', 'matriz', 'premissas'],
+  fn: (base_1t, matriz, premissas) => {
+    const p = Object.fromEntries(premissas.map((r) => [r.parametro, Number(r.valor)]));
+    const m = Object.fromEntries(matriz.map((r) => [r.grupo, r]));
+    const cols = { cury: 'cury_pct', renan: 'renan_pct', caiado: 'caiado_pct', zema: 'zema_pct', esquerda: 'esquerda_pct', outros: 'outros_pct' };
+    return base_1t.map((b) => {
+      const V = Number(b.validos_1t), E = Number(b.eleitorado), A1 = Number(b.abstencao_1t_pct), BN1 = Number(b.brancos_nulos_1t_pct);
+      const f = (V * Number(b.flavio_1t_pct)) / 100, l = (V * Number(b.lula_1t_pct)) / 100;
+      let F = f * p.lealdade + l * p.troca, L = l * p.lealdade + f * p.troca;
+      for (const [g, c] of Object.entries(cols)) { F += ((V * Number(b[c])) / 100) * m[g].flavio; L += ((V * Number(b[c])) / 100) * m[g].lula; }
+      const novos = ((E * A1) / 100) * p.novos_abstencionistas + ((Number(b.comparecimento_1t) * BN1) / 100) * p.novos_brancos_nulos;
+      F += novos * m.faltosos.flavio; L += novos * m.faltosos.lula;
+      const comp = E * (1 - (A1 + Number(b.var_abstencao_2t_pp)) / 100);
+      const bn = (BN1 + (b.uf === 'EX' ? 0 : p.brancos_nulos_extra_pp)) / 100;
+      return { uf: b.uf, estado: b.estado, regiao: b.regiao, eleitorado: E, flavio_bruto: F, lula_bruto: L, comparecimento: comp, validos: comp * (1 - bn), flavio_1t_pct: Number(b.flavio_1t_pct), lula_1t_pct: Number(b.lula_1t_pct), validos_1t: V, comparecimento_1t: Number(b.comparecimento_1t) };
+    });
+  },
+});
+
+dash.calc('resumo', {
+  title: 'Projeção nacional',
+  description: 'Combina o modelo de transferência com as pesquisas ajustadas e calcula chance e faixa.',
+  inputs: ['bruto', 'pesos_pesquisas', 'matriz', 'premissas'],
+  fn: (bruto, pesos_pesquisas, matriz, premissas) => {
+    const p = Object.fromEntries(premissas.map((r) => [r.parametro, Number(r.valor)]));
+    const sF = bruto.reduce((s, r) => s + r.flavio_bruto, 0), sL = bruto.reduce((s, r) => s + r.lula_bruto, 0);
+    const modelo = (100 * sF) / (sF + sL);
+    const media = pesos_pesquisas.reduce((s, r) => s + r.flavio_validos * r.peso, 0);
+    const correcao = pesos_pesquisas.reduce((s, r) => s + r.correcao * r.peso, 0) * p.fracao_correcao_instituto;
+    const fal = matriz.find((r) => r.grupo === 'faltosos');
+    const nvF = (100 * fal.flavio) / (fal.flavio + fal.lula), a = p.faltosos_na_amostra, t = p.comparecimento_faltosos;
+    const votF = (media - a * nvF) / (1 - a);
+    const lv = ((1 - a) * votF + a * t * nvF) / ((1 - a) + a * t) - media;
+    const ajust = media + lv + correcao + p.tendencia;
+    const final = p.peso_modelo * modelo + (1 - p.peso_modelo) * ajust;
+    const lg = (x) => Math.log(x / (1 - x)), il = (x) => 1 / (1 + Math.exp(-x));
+    const nac = (s) => { let a2 = 0, b2 = 0; for (const r of bruto) { const v = r.flavio_bruto + r.lula_bruto; a2 += il(lg(r.flavio_bruto / v) + s) * v; b2 += v; } return (100 * a2) / b2; };
+    let lo = -1, hi = 1;
+    for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (nac(mid) < final) lo = mid; else hi = mid; }
+    const z = (final - 50) / p.desvio_padrao;
+    const erf = (x) => { const s = Math.sign(x); x = Math.abs(x); const tt = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * tt - 1.453152027) * tt) + 1.421413741) * tt - 0.284496736) * tt + 0.254829592) * tt * Math.exp(-x * x)); };
+    return [{ modelo_transferencia: modelo, media_pesquisas: media, ajuste_eleitor_provavel: lv, correcao_institutos: correcao, tendencia: p.tendencia, pesquisas_ajustadas: ajust,
+      flavio_final: final, deslocamento: (lo + hi) / 2, chance_flavio: 0.5 * (1 + erf(z / Math.SQRT2)), chance_lula: 1 - 0.5 * (1 + erf(z / Math.SQRT2)), faixa_min: final - 1.2816 * p.desvio_padrao, faixa_max: final + 1.2816 * p.desvio_padrao }];
+  },
+});
+
+dash.calc('estados', {
+  title: 'Projeção por UF',
+  description: 'Modelo de transferência deslocado (escala logística) até somar a projeção nacional.',
+  inputs: ['bruto', 'resumo', 'premissas'],
+  fn: (bruto, resumo, premissas) => {
+    const p = Object.fromEntries(premissas.map((r) => [r.parametro, Number(r.valor)]));
+    const s = resumo[0].deslocamento, lg = (x) => Math.log(x / (1 - x)), il = (x) => 1 / (1 + Math.exp(-x));
+    return bruto.map((r) => {
+      const pf = il(lg(r.flavio_bruto / (r.flavio_bruto + r.lula_bruto)) + s), bn = r.comparecimento - r.validos;
+      const m = 100 * (2 * pf - 1);
+      return { uf: r.uf, estado: r.estado, regiao: r.regiao, eleitorado: r.eleitorado, flavio_pct: 100 * pf, lula_pct: 100 - 100 * pf,
+        flavio_votos: r.validos * pf, lula_votos: r.validos * (1 - pf), margem: m,
+        vencedor: Math.abs(m) < 1 ? 'Empate técnico' : m > 0 ? 'Flávio' : 'Lula',
+        abstencao_pct: 100 * (1 - r.comparecimento / r.eleitorado), abstencao: r.eleitorado - r.comparecimento,
+        brancos: bn * p.parcela_brancos, nulos: bn * (1 - p.parcela_brancos), comparecimento: r.comparecimento, flavio_1t_pct: r.flavio_1t_pct, lula_1t_pct: r.lula_1t_pct, margem_1t: r.flavio_1t_pct - r.lula_1t_pct,
+        flavio_1t_votos: (r.validos_1t * r.flavio_1t_pct) / 100, lula_1t_votos: (r.validos_1t * r.lula_1t_pct) / 100, validos_1t: r.validos_1t, comparecimento_1t: r.comparecimento_1t };
+    });
+  },
+});
+
+dash.calc('regioes', {
+  title: 'Projeção por região', description: 'Soma das UFs de cada região.', inputs: ['estados'],
+  fn: (estados) => ['Sudeste', 'Nordeste', 'Sul', 'Norte', 'Centro-Oeste', 'Exterior'].map((g) => {
+    const rs = estados.filter((r) => r.regiao === g), sum = (k) => rs.reduce((s, r) => s + r[k], 0);
+    const F = sum('flavio_votos'), L = sum('lula_votos');
+    return { regiao: g, flavio_pct: (100 * F) / (F + L), lula_pct: (100 * L) / (F + L), flavio_votos: F, lula_votos: L, diferenca_votos: F - L, abstencao_pct: (100 * sum('abstencao')) / sum('eleitorado'),
+      flavio_1t_pct: (100 * sum('flavio_1t_votos')) / sum('validos_1t'), lula_1t_pct: (100 * sum('lula_1t_votos')) / sum('validos_1t'), diferenca_1t_votos: sum('flavio_1t_votos') - sum('lula_1t_votos') };
+  }),
+});
+
+dash.calc('brasil', {
+  title: 'Projeção Brasil', description: 'Soma de todas as UFs e do exterior.', inputs: ['estados'],
+  fn: (estados) => {
+    const sum = (k) => estados.reduce((s, r) => s + r[k], 0), F = sum('flavio_votos'), L = sum('lula_votos');
+    return [{ flavio_pct: (100 * F) / (F + L), lula_pct: (100 * L) / (F + L), flavio_votos: F, lula_votos: L, diferenca_votos: F - L,
+      abstencao_pct: (100 * sum('abstencao')) / sum('eleitorado'), brancos_nulos_pct: (100 * (sum('brancos') + sum('nulos'))) / sum('comparecimento'),
+      brancos_nulos_votos: sum('brancos') + sum('nulos'), abstencao_votos: sum('abstencao'), eleitorado: sum('eleitorado'),
+      flavio_1t_votos: sum('flavio_1t_votos'), lula_1t_votos: sum('lula_1t_votos'), validos_1t: sum('validos_1t'),
+      brancos_nulos_1t_votos: sum('comparecimento_1t') - sum('validos_1t'), abstencao_1t_votos: sum('eleitorado') - sum('comparecimento_1t') }];
+  },
+});
+
+dash.calc('percepcao', {
+  title: 'Opinião do criador',
+  description: 'Projeção dos dados + ajuste de opinião do criador do projeto (pontos a mais para Flávio e a menos para Lula).',
+  inputs: ['brasil', 'premissas'],
+  fn: (brasil, premissas) => {
+    const p = Object.fromEntries(premissas.map((r) => [r.parametro, Number(r.valor)]));
+    const b = brasil[0], aj = p.percepcao_criador_pp, V = b.flavio_votos + b.lula_votos;
+    const f = b.flavio_pct + aj, l = b.lula_pct - aj;
+    return [{ ajuste_pp: aj, flavio_pct: f, lula_pct: l, flavio_votos: (V * f) / 100, lula_votos: (V * l) / 100, diferenca_votos: (V * (f - l)) / 100 }];
+  },
+});
+
+dash.calc('comparativo', {
+  title: '1º turno x projeção',
+  description: 'Resultado oficial do 1º turno comparado à projeção do 2º turno e à opinião do criador.',
+  inputs: ['brasil', 'percepcao', 'oficial_1t'],
+  fn: (brasil, percepcao, oficial_1t) => {
+    const b = brasil[0], c = percepcao[0], o = oficial_1t[0], v1 = Number(o.validos), v2 = b.flavio_votos + b.lula_votos;
+    const F1 = Number(o.flavio), L1 = Number(o.lula), abst1 = Number(o.eleitorado) - Number(o.comparecimento);
+    const linhas = [
+      ['Lula — votos', 'votos', L1, b.lula_votos, c.lula_votos],
+      ['Lula — % dos válidos', 'pct', (100 * L1) / v1, b.lula_pct, c.lula_pct],
+      ['Flávio — votos', 'votos', F1, b.flavio_votos, c.flavio_votos],
+      ['Flávio — % dos válidos', 'pct', (100 * F1) / v1, b.flavio_pct, c.flavio_pct],
+      ['Outros candidatos — votos', 'votos', v1 - F1 - L1, 0, 0],
+      ['Vantagem no placar', 'dif', F1 - L1, b.diferenca_votos, c.diferenca_votos],
+      ['Votos válidos', 'votos', v1, v2, v2],
+      ['Brancos + nulos', 'votos', Number(o.brancos) + Number(o.nulos), b.brancos_nulos_votos, b.brancos_nulos_votos],
+      ['Abstenção', 'votos', abst1, b.abstencao_votos, b.abstencao_votos],
+      ['Abstenção — % do eleitorado', 'pct', (100 * abst1) / Number(o.eleitorado), b.abstencao_pct, b.abstencao_pct],
+    ];
+    return linhas.map(([item, unidade, t1, proj, perc]) => ({ item, unidade, primeiro_turno: t1, projecao: proj, variacao: proj - t1, percepcao_criador: perc }));
+  },
+});
+
+dash.calc('curva_apuracao', {
+  title: 'Curva esperada da apuração',
+  description: 'Desvio da apuração do 1º turno (Flávio entre os dois, escala logística) aplicado ao resultado projetado do 2º turno e à opinião do criador.',
+  inputs: ['apuracao_1t', 'brasil', 'percepcao'],
+  fn: (apuracao_1t, brasil, percepcao) => {
+    const lg = (x) => Math.log(x / (1 - x)), il = (x) => 1 / (1 + Math.exp(-x));
+    const pts = apuracao_1t.map((r) => ({ x: Number(r.urnas_apuradas_pct), s: Number(r.flavio_pct) / (Number(r.flavio_pct) + Number(r.lula_pct)) })).sort((a, b) => a.x - b.x);
+    const fim = pts[pts.length - 1].s;
+    const dev = (x) => {
+      if (x <= pts[0].x) return lg(pts[0].s) - lg(fim);
+      for (let i = 1; i < pts.length; i++) if (x <= pts[i].x) {
+        const a = pts[i - 1], b = pts[i], t = (x - a.x) / (b.x - a.x);
+        return lg(a.s + t * (b.s - a.s)) - lg(fim);
+      }
+      return 0;
+    };
+    const fe = brasil[0].flavio_pct / 100, fc = percepcao[0].flavio_pct / 100, out = [];
+    for (let x = 0; x <= 100.001; x += 0.5) {
+      const d = dev(x);
+      out.push({ urnas_pct: Math.round(x * 10) / 10, primeiro_turno_flavio: 100 * il(lg(fim) + d), estudo_flavio: 100 * il(lg(fe) + d), criador_flavio: 100 * il(lg(fc) + d) });
+    }
+    return out;
+  },
+});
+</script>
+
+<script>
+const nf = (d) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (x, d = 1) => nf(d).format(x) + '%';
+const int = (x) => nf(0).format(Math.round(x));
+const mi = (x) => nf(1).format(Math.abs(x) / 1e6) + ' mi';
+const grupoNome = { cury: 'Augusto Cury', renan: 'Renan Santos', caiado: 'Ronaldo Caiado', zema: 'Zema', esquerda: 'Esquerda (UP, PSTU, PCB, PCO)', outros: 'Outros', faltosos: 'Faltou ou anulou' };
+const TILE = { RR: [1, 0], AP: [3, 0], AC: [0, 1], AM: [1, 1], PA: [2, 1], MA: [3, 1], CE: [4, 1], RN: [5, 1], RO: [1, 2], TO: [2, 2], PI: [3, 2], PE: [4, 2], PB: [5, 2],
+  MT: [1, 3], GO: [2, 3], BA: [3, 3], AL: [4, 3], SE: [5, 3], MS: [1, 4], DF: [2, 4], MG: [3, 4], ES: [4, 4], SP: [2, 5], RJ: [3, 5], PR: [1, 5], SC: [1, 6], RS: [1, 7] };
+
+const probe = document.createElement('span');
+probe.style.display = 'none';
+document.getElementById('tiles').appendChild(probe);
+const resolve = (tok) => { probe.style.color = tok; return getComputedStyle(probe).color; };
+const cF = () => dash.colors[0], cL = () => dash.colors[1];
+
+const setText = (el, s) => { el.textContent = s; el.classList.remove('dash-skeleton'); };
+const fill = (src, fmt) => document.querySelectorAll(`[data-source="${src}"][data-field]`).forEach((el) => {
+  const d = dash.data(src); if (d.status !== 'ok' || !d.data.length) return;
+  const row = d.data[Number(el.dataset.row || 0)]; if (row && row[el.dataset.field] != null) setText(el, fmt(el.dataset.field, row[el.dataset.field]));
+});
+
+const fmtBrasil = (k, v) => k.endsWith('_pct') ? pct(v) : k === 'diferenca_votos' ? (v > 0 ? 'Flávio +' : 'Lula +') + mi(v) : int(v) + ' votos';
+const fmtResumo = (k, v) => (k === 'chance_flavio' || k === 'chance_lula') ? nf(0).format(v * 100) + '%' : ['ajuste_eleitor_provavel', 'correcao_institutos', 'tendencia'].includes(k) ? (v >= 0 ? '+' : '−') + nf(2).format(Math.abs(v)) + ' p.p.' : pct(v, 2);
+
+let sortK = 'estado', sortDir = 1;
+document.querySelectorAll('#tabestados th button').forEach((b) => b.addEventListener('click', () => {
+  const k = b.dataset.k; sortDir = sortK === k ? -sortDir : (k === 'estado' || k === 'vencedor' ? 1 : -1); sortK = k; drawEstados();
+}));
+const busca = document.getElementById('busca');
+busca.addEventListener('input', () => drawEstados());
+
+function drawEstados() {
+  const d = dash.data('estados'), tb = document.getElementById('estbody');
+  document.querySelectorAll('#tabestados th').forEach((th) => th.setAttribute('aria-sort', th.dataset.field === sortK ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'));
+  if (d.status !== 'ok') { tb.replaceChildren(); return; }
+  const q = busca.value.trim().toLowerCase();
+  const rows = d.data.filter((r) => !q || (r.estado + ' ' + r.regiao + ' ' + r.uf).toLowerCase().includes(q))
+    .sort((a, b) => (typeof a[sortK] === 'string' ? a[sortK].localeCompare(b[sortK]) : a[sortK] - b[sortK]) * sortDir);
+  tb.replaceChildren(...rows.map((r) => {
+    const tr = document.createElement('tr');
+    const cells = [r.estado, pct(r.lula_pct), pct(r.flavio_pct), int(r.lula_votos), int(r.flavio_votos), r.vencedor, pct(r.lula_1t_pct), pct(r.flavio_1t_pct), pct(r.abstencao_pct), int(r.brancos), int(r.nulos)];
+    cells.forEach((c, i) => { const td = document.createElement('td'); if ([3, 4, 6, 7, 8, 9, 10].includes(i)) td.className = 'xs-hide';
+      if (i === 5) { const s = document.createElement('span'); s.className = 'tag'; s.textContent = c; s.style.borderColor = r.vencedor === 'Flávio' ? cF() : r.vencedor === 'Lula' ? cL() : 'var(--color-warn)'; td.appendChild(s); } else td.textContent = c;
+      tr.appendChild(td); });
+    return tr;
+  }));
+}
+
+function drawTiles() {
+  const box = document.getElementById('tiles'), d = dash.data('estados');
+  box.querySelectorAll('svg, .tip').forEach((n) => n.remove());
+  if (d.status !== 'ok') return;
+  const W = box.clientWidth || 320, cols = 6, rowsN = 8, gap = 4, s = Math.min(56, (W - gap * (cols - 1)) / cols), H = rowsN * s + (rowsN - 1) * gap;
+  const ox = (W - (cols * s + (cols - 1) * gap)) / 2;
+  const colF = resolve(cF()), colL = resolve(cL()), mid = resolve('var(--color-panel)');
+  const scale = (m) => m >= 0 ? d3.interpolateRgb(mid, colF)(0.15 + 0.85 * Math.min(m, 40) / 40) : d3.interpolateRgb(mid, colL)(0.15 + 0.85 * Math.min(-m, 40) / 40);
+  document.getElementById('ramp').style.background = `linear-gradient(90deg, ${colL}, ${mid}, ${colF})`;
+  const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Mapa de quadrados por UF');
+  const tip = d3.select(box).append('div').attr('class', 'tip');
+  const rows = d.data.filter((r) => TILE[r.uf]);
+  const g = svg.selectAll('g').data(rows).join('g').attr('transform', (r) => `translate(${ox + TILE[r.uf][0] * (s + gap)},${TILE[r.uf][1] * (s + gap)})`).style('cursor', 'pointer');
+  g.append('rect').attr('width', s).attr('height', s).attr('rx', 6).attr('fill', (r) => Math.abs(r.margem) < 1 ? resolve('var(--color-border-line)') : scale(r.margem))
+    .attr('stroke', (r) => Math.abs(r.margem) < 1 ? resolve('var(--color-warn)') : 'none').attr('stroke-width', 2);
+  g.append('text').attr('x', s / 2).attr('y', s / 2 - 2).attr('text-anchor', 'middle').attr('font-size', Math.max(10, s * 0.24)).attr('font-weight', 600)
+    .attr('fill', (r) => Math.abs(r.margem) > 22 ? '#fff' : 'var(--color-fg)').text((r) => r.uf);
+  g.append('text').attr('x', s / 2).attr('y', s / 2 + Math.max(10, s * 0.24)).attr('text-anchor', 'middle').attr('font-size', Math.max(8, s * 0.18))
+    .attr('fill', (r) => Math.abs(r.margem) > 22 ? '#fff' : 'var(--color-fg-muted)').text((r) => (r.margem > 0 ? 'F+' : 'L+') + nf(0).format(Math.abs(r.margem)));
+  const show = (ev, r) => {
+    const [x, y] = d3.pointer(ev, box);
+    tip.style('display', 'block').html('');
+    tip.append('div').attr('class', 't').text(r.estado);
+    tip.append('div').text(`Lula ${pct(r.lula_pct)} · Flávio ${pct(r.flavio_pct)}`);
+    tip.append('div').attr('class', 't').text(`${r.vencedor} · 1º turno: Lula ${pct(r.lula_1t_pct)} · Flávio ${pct(r.flavio_1t_pct)}`);
+    const tw = tip.node().offsetWidth; tip.style('left', Math.max(0, Math.min(W - tw, x - tw / 2)) + 'px').style('top', Math.max(0, y - 70) + 'px');
+  };
+  g.on('mousemove', show).on('click', show).on('mouseleave', () => tip.style('display', 'none'));
+}
+
+function drawPolls() {
+  const box = document.getElementById('pchart'), d = dash.data('pesos_pesquisas');
+  box.querySelectorAll('svg, .tip').forEach((n) => n.remove());
+  if (d.status !== 'ok') return;
+  const media = d3.sum(d.data, (r) => r.flavio_validos * r.peso);
+  const rows = [{ instituto: 'Média ponderada', flavio_validos: media, peso: 1, media: true }, ...[...d.data].sort((a, b) => b.peso - a.peso)];
+  const W = box.clientWidth || 320, rowH = 38, H = rows.length * rowH + 6, x = d3.scaleLinear([0, 100], [0, W]);
+  const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Pesquisas: votos válidos de Lula e Flávio');
+  const g = svg.selectAll('.row').data(rows).join('g').attr('transform', (r, i) => `translate(0,${i * rowH})`);
+  g.append('text').attr('x', 0).attr('y', 12).attr('font-size', 11).attr('font-weight', (r) => (r.media ? 600 : 400)).attr('fill', 'var(--color-fg)')
+    .text((r) => r.media ? r.instituto : `${r.instituto} · peso ${pct(r.peso * 100, 0)}`);
+  const by = 17, bh = 14;
+  g.append('rect').attr('x', 0).attr('y', by).attr('height', bh).attr('width', (r) => x(100 - r.flavio_validos)).attr('fill', cL()).attr('fill-opacity', (r) => (r.media ? 1 : 0.8)).attr('rx', 3);
+  g.append('rect').attr('x', (r) => x(100 - r.flavio_validos)).attr('y', by).attr('height', bh).attr('width', (r) => W - x(100 - r.flavio_validos)).attr('fill', cF()).attr('fill-opacity', (r) => (r.media ? 1 : 0.8)).attr('rx', 3);
+  g.append('text').attr('x', 4).attr('y', by + 11).attr('font-size', 10).attr('fill', '#fff').text((r) => `Lula ${nf(1).format(100 - r.flavio_validos)}`);
+  g.append('text').attr('x', W - 4).attr('y', by + 11).attr('text-anchor', 'end').attr('font-size', 10).attr('fill', '#fff').text((r) => `Flávio ${nf(1).format(r.flavio_validos)}`);
+  svg.append('line').attr('x1', x(50)).attr('x2', x(50)).attr('y1', 14).attr('y2', H).attr('stroke', 'var(--color-fg)').attr('stroke-width', 1.5).attr('stroke-dasharray', '2 2');
+  const tip = d3.select(box).append('div').attr('class', 'tip');
+  g.filter((r) => !r.media).style('cursor', 'pointer').on('mousemove click', (ev, r) => { const [px, py] = d3.pointer(ev, box); tip.style('display', 'block').html('');
+    tip.append('div').attr('class', 't').text(`${r.instituto} · divulgada ${r.divulgacao}`);
+    tip.append('div').text(`Lula ${pct(100 - r.flavio_validos)} · Flávio ${pct(r.flavio_validos)}`);
+    tip.append('div').attr('class', 't').text(`${int(r.entrevistas)} entrevistas · peso ${pct(r.peso * 100)}`);
+    const tw = tip.node().offsetWidth; tip.style('left', Math.max(0, Math.min(W - tw, px - tw / 2)) + 'px').style('top', Math.max(0, py - 72) + 'px'); })
+    .on('mouseleave', () => tip.style('display', 'none'));
+}
+
+function drawDumbbell() {
+  const box = document.getElementById('dumbbell'), d = dash.data('estados');
+  box.querySelectorAll('svg, .tip').forEach((n) => n.remove());
+  if (d.status !== 'ok') return;
+  const rows = d.data.filter((r) => r.uf !== 'EX').sort((a, b) => b.margem - a.margem);
+  const W = box.clientWidth || 320, rowH = 20, top = 22, H = top + rows.length * rowH + 26, left = 34;
+  const ext = Math.ceil(Math.max(...rows.map((r) => Math.max(Math.abs(r.margem), Math.abs(r.margem_1t)))) / 10) * 10;
+  const x = d3.scaleLinear([-ext, ext], [left, W - 10]);
+  const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Vantagem por estado no 1º turno e na projeção');
+  svg.append('text').attr('x', x(-ext)).attr('y', 12).attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text('← Lula');
+  svg.append('text').attr('x', x(ext)).attr('y', 12).attr('text-anchor', 'end').attr('font-size', 11).attr('fill', 'var(--color-fg-muted)').text('Flávio →');
+  svg.append('line').attr('x1', x(0)).attr('x2', x(0)).attr('y1', top - 6).attr('y2', H - 22).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '3 3');
+  const ax = svg.append('g').attr('transform', `translate(0,${H - 22})`).call(d3.axisBottom(x).ticks(Math.max(3, Math.floor((W - left) / 60))).tickFormat((v) => (v > 0 ? '+' : '') + nf(0).format(v)));
+  ax.attr('font-size', null).attr('font-family', null); ax.selectAll('text').attr('fill', 'var(--color-fg-muted)').attr('font-size', 10); ax.select('.domain').attr('stroke', 'var(--cds-chart-axis)'); ax.selectAll('line').attr('stroke', 'var(--cds-chart-axis)');
+  const col = (m) => (m >= 0 ? cF() : cL());
+  const g = svg.selectAll('.row').data(rows).join('g').attr('transform', (r, i) => `translate(0,${top + i * rowH + rowH / 2})`);
+  g.append('text').attr('x', 4).attr('y', 4).attr('font-size', 11).attr('fill', 'var(--color-fg)').text((r) => r.uf);
+  g.append('line').attr('x1', (r) => x(r.margem_1t)).attr('x2', (r) => x(r.margem)).attr('stroke', (r) => col(r.margem)).attr('stroke-width', 2).attr('stroke-opacity', 0.5);
+  g.append('circle').attr('cx', (r) => x(r.margem_1t)).attr('r', 4).attr('fill', 'var(--color-panel)').attr('stroke', (r) => col(r.margem_1t)).attr('stroke-width', 1.5);
+  g.append('circle').attr('cx', (r) => x(r.margem)).attr('r', 4.5).attr('fill', (r) => col(r.margem));
+  const tip = d3.select(box).append('div').attr('class', 'tip');
+  g.style('cursor', 'pointer').on('mousemove click', (ev, r) => { const [px, py] = d3.pointer(ev, box); tip.style('display', 'block').html('');
+    tip.append('div').attr('class', 't').text(r.estado);
+    tip.append('div').text(`1º turno: Lula ${pct(r.lula_1t_pct)} · Flávio ${pct(r.flavio_1t_pct)}`);
+    tip.append('div').text(`Projeção: Lula ${pct(r.lula_pct)} · Flávio ${pct(r.flavio_pct)}`);
+    const tw = tip.node().offsetWidth; tip.style('left', Math.max(0, Math.min(W - tw, px - tw / 2)) + 'px').style('top', Math.max(0, py - 76) + 'px'); })
+    .on('mouseleave', () => tip.style('display', 'none'));
+}
+
+const showPg = (pg) => {
+  document.querySelectorAll('.pj .pg').forEach((d) => { d.hidden = d.id !== pg; });
+  document.querySelectorAll('.pj .tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.pg === pg)));
+  dash.setLink(pg);
+  if (pg === 'projecao') { drawTiles(); drawPolls(); drawDumbbell(); drawSim(); }
+};
+document.querySelectorAll('.pj [data-pg]').forEach((b) => b.addEventListener('click', () => { showPg(b.dataset.pg); document.getElementById('topo').scrollIntoView(); }));
+if (location.hash.slice(1) === 'metodologia') showPg('metodologia');
+
+const fmtPrem = (fmt, v) => fmt === 'pct' ? nf(Math.abs(v * 100 - Math.round(v * 100)) < 1e-9 ? 0 : 1).format(v * 100) + '%' : fmt === 'pp' ? nf(1).format(v) + ' ponto' + (v === 1 ? '' : 's') : nf(v % 1 ? 1 : 0).format(v);
+function drawMetodo() {
+  const pr = dash.data('premissas');
+  if (pr.status === 'ok') {
+    document.querySelectorAll('.pv[data-source="premissas"]').forEach((el) => {
+      const key = decodeURIComponent(el.dataset.where.split('=')[1]), row = pr.data.find((r) => r.parametro === key);
+      if (row) setText(el, fmtPrem(el.dataset.fmt, Number(row.valor)));
+    });
+  }
+  const r = dash.data('resumo');
+  if (r.status === 'ok' && r.data.length) setText(document.getElementById('m-faixa'), `${nf(1).format(r.data[0].faixa_min)}% a ${nf(1).format(r.data[0].faixa_max)}%`);
+  const b = dash.data('base_1t'), tb = document.getElementById('m-abst');
+  if (b.status === 'ok') {
+    const g = d3.group(b.data, (x) => Number(x.var_abstencao_2t_pp));
+    tb.replaceChildren(...[...g.entries()].sort((x, y) => x[0] - y[0]).map(([v, rs]) => { const tr = document.createElement('tr');
+      const a = document.createElement('td'); a.textContent = (v >= 0 ? '+' : '−') + nf(2).format(Math.abs(v)) + ' p.p.';
+      const c = document.createElement('td'); c.textContent = rs.map((x) => x.uf === 'EX' ? 'Exterior' : x.uf).join(', '); c.style.textAlign = 'left'; c.style.whiteSpace = 'normal';
+      tr.append(a, c); return tr; }));
+  }
+  drawRows('m-tbody', 'transferencias', (x) => [[x.fonte], [x.grupo], [pct(Number(x.lula_pct), 1)], [pct(Number(x.flavio_pct), 1)], [int(Number(x.subamostra))], [nf(1).format(Number(x.erro_1t)), 'xs-hide']]);
+  drawRows('m-pbody', 'pesos_pesquisas', (x) => [[x.instituto], [`${nf(1).format(100 - x.flavio_validos)} x ${nf(1).format(x.flavio_validos)}`], [int(x.entrevistas), 'xs-hide'], [nf(1).format(x.erro_usado)], [pct(x.peso_sem_teto * 100), 'xs-hide'], [pct(x.peso * 100)]]);
+  drawRows('m-ebody', 'erros_historicos', (x) => { const e = Number(x.resultado_validos) - Number(x.previsto_validos); return [[x.eleicao], [x.instituto], [x.candidato, 'xs-hide'], [pct(Number(x.previsto_validos))], [pct(Number(x.resultado_validos), 2)], [(e >= 0 ? '+' : '−') + nf(2).format(Math.abs(e)) + ' p.p.']]; });
+  drawRows('m-prbody', 'premissas', (x) => [[x.parametro], [nf(Math.abs(Number(x.valor)) < 1 ? 2 : 1).format(Number(x.valor))], [x.descricao]]);
+  document.querySelectorAll('#m-prbody td:nth-child(3), #m-tbody td:first-child').forEach((td) => { td.style.whiteSpace = 'normal'; td.style.textAlign = 'left'; });
+}
+
+let simCen = 'estudo', simX = 100, simTimer = null, simLiveSet = false;
+document.querySelectorAll('#simulador [data-cen]').forEach((b) => b.addEventListener('click', () => {
+  simCen = b.dataset.cen; document.querySelectorAll('#simulador [data-cen]').forEach((x) => x.setAttribute('aria-checked', String(x === b))); drawSim();
+}));
+const simRange = document.getElementById('simrange'), simPlay = document.getElementById('simplay');
+simRange.addEventListener('input', () => { simX = Number(simRange.value); stopSim(); drawSim(); });
+const stopSim = () => { if (simTimer) { clearInterval(simTimer); simTimer = null; simPlay.textContent = '▶'; } };
+simPlay.addEventListener('click', () => {
+  if (simTimer) { stopSim(); return; }
+  if (simX >= 100) simX = 0;
+  simPlay.textContent = '❚❚';
+  simTimer = setInterval(() => { simX = Math.min(100, simX + 0.5); simRange.value = simX; drawSim(); if (simX >= 100) stopSim(); }, 40);
+});
+const tseRows = () => { const a = dash.data('apuracao'); return a.status === 'ok' ? a.data.filter((r) => r.uf === 'BR').map((r) => ({ x: Number(r.urnas_apuradas_pct), f: Number(r.flavio_pct), l: Number(r.lula_pct), h: r.atualizado_em })).filter((r) => r.x > 0).sort((a, b) => a.x - b.x) : []; };
+function drawSim() {
+  const box = document.getElementById('simchart'), d = dash.data('curva_apuracao');
+  box.querySelectorAll('svg, .tip').forEach((n) => n.remove());
+  if (d.status !== 'ok' || !d.data.length) return;
+  const rows = d.data, tse = tseRows(), live = tse.length ? tse[tse.length - 1] : null;
+  if (live && !simLiveSet && !simTimer) { simX = Math.round(live.x * 2) / 2; simRange.value = simX; simLiveSet = true; }
+  const near = (x) => rows.reduce((b, r) => (Math.abs(r.urnas_pct - x) < Math.abs(b.urnas_pct - x) ? r : b), rows[0]);
+  const at = near(simX), showE = simCen !== 'criador', showC = simCen !== 'estudo';
+  const vs = (f) => `${nf(1).format(100 - f)} x ${nf(1).format(f)}`;
+  setText(document.getElementById('sn-urnas'), pct(simX, 1));
+  document.getElementById('sn-a-k').textContent = showE ? 'Estudo · Lula x Flávio' : 'Criador · Lula x Flávio';
+  setText(document.getElementById('sn-a'), vs(showE ? at.estudo_flavio : at.criador_flavio));
+  document.getElementById('sn-b-box').hidden = simCen !== 'ambos';
+  if (simCen === 'ambos') setText(document.getElementById('sn-b'), vs(at.criador_flavio));
+  document.getElementById('sn-tse-box').hidden = !live;
+  if (live) {
+    const tf = (100 * live.f) / (live.f + live.l), lgf = (x) => Math.log(x / (1 - x)), il = (x) => 1 / (1 + Math.exp(-x));
+    setText(document.getElementById('sn-tse'), vs(tf));
+    const aL = near(live.x), fim1 = rows[rows.length - 1].primeiro_turno_flavio;
+    const impl = 100 * il(lgf(tf / 100) - (lgf(aL.primeiro_turno_flavio / 100) - lgf(fim1 / 100)));
+    const lado = (dlt) => Math.abs(dlt) < 0.05 ? 'em cima da curva' : `${nf(1).format(Math.abs(dlt))} ponto(s) mais favorável a ${dlt > 0 ? 'Flávio' : 'Lula'}`;
+    setText(document.getElementById('simlive'), `Apuração oficial: ${pct(live.x, 2)} das urnas às ${live.h}. O placar do TSE está ${lado(tf - aL.estudo_flavio)} que a curva do estudo e ${lado(tf - aL.criador_flavio)} que a do criador. Se a ordem de chegada das urnas repetir a do 1º turno, isso aponta para um resultado final de Lula ${pct(100 - impl)} x Flávio ${pct(impl)}.`);
+  } else {
+    setText(document.getElementById('simlive'), 'No domingo, a partir das 17h, os números oficiais do TSE aparecem aqui ao lado das curvas, na mesma porcentagem de urnas apuradas, e o simulador acompanha a apuração automaticamente.');
+  }
+  const W = box.clientWidth || 320, H = Math.max(230, Math.min(330, W * 0.58)), m = { l: 40, r: 12, t: 30, b: 28 };
+  const fs = rows.flatMap((r) => [r.primeiro_turno_flavio, showE ? r.estudo_flavio : 50, showC ? r.criador_flavio : 50]).concat(tse.map((t) => (100 * t.f) / (t.f + t.l)));
+  const ext = Math.ceil(Math.max(3, ...fs.map((f) => Math.abs(f - 50))));
+  const x = d3.scaleLinear([0, 100], [m.l, W - m.r]), y = d3.scaleLinear([50 - ext - 1, 50 + ext + 1], [H - m.b, m.t]);
+  const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img').attr('aria-label', 'Curva esperada da apuração para Lula e Flávio');
+  const gy = svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(6).tickSize(-(W - m.l - m.r)).tickFormat((v) => nf(0).format(v) + '%'));
+  gy.attr('font-size', null).attr('font-family', null); gy.select('.domain').remove(); gy.selectAll('line').attr('stroke', 'var(--cds-chart-grid)'); gy.selectAll('text').attr('fill', 'var(--color-fg-muted)').attr('font-size', 10);
+  const gx = svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).ticks(5).tickFormat((v) => v + '%'));
+  gx.attr('font-size', null).attr('font-family', null); gx.selectAll('text').attr('fill', 'var(--color-fg-muted)').attr('font-size', 10); gx.select('.domain').attr('stroke', 'var(--cds-chart-axis)'); gx.selectAll('line').attr('stroke', 'var(--cds-chart-axis)');
+  svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(50)).attr('y2', y(50)).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+  const ln = (k, lula) => d3.line().x((r) => x(r.urnas_pct)).y((r) => y(lula ? 100 - r[k] : r[k]));
+  [false, true].forEach((lula) => svg.append('path').datum(rows).attr('d', ln('primeiro_turno_flavio', lula)).attr('fill', 'none').attr('stroke', 'var(--cds-chart-muted)').attr('stroke-width', 1.2));
+  const upto = rows.filter((r) => r.urnas_pct <= simX + 1e-9);
+  const curve = (k, dash) => [[false, cF()], [true, cL()]].forEach(([lula, c]) => {
+    svg.append('path').datum(rows).attr('d', ln(k, lula)).attr('fill', 'none').attr('stroke', c).attr('stroke-width', 2).attr('stroke-opacity', 0.22).attr('stroke-dasharray', dash);
+    svg.append('path').datum(upto).attr('d', ln(k, lula)).attr('fill', 'none').attr('stroke', c).attr('stroke-width', 2.5).attr('stroke-linecap', 'round').attr('stroke-dasharray', dash);
+    svg.append('circle').attr('cx', x(simX)).attr('cy', y(lula ? 100 - at[k] : at[k])).attr('r', 4.5).attr('fill', dash ? 'var(--color-panel)' : c).attr('stroke', c).attr('stroke-width', 2);
+  });
+  if (showE) curve('estudo_flavio', null);
+  if (showC) curve('criador_flavio', '5 4');
+  if (tse.length) [[false, cF()], [true, cL()]].forEach(([lula, c]) => {
+    const yy = (t) => y(lula ? (100 * t.l) / (t.f + t.l) : (100 * t.f) / (t.f + t.l));
+    svg.append('path').datum(tse).attr('d', d3.line().x((t) => x(t.x)).y(yy)).attr('fill', 'none').attr('stroke', 'var(--color-fg)').attr('stroke-width', 1.5);
+    svg.selectAll(null).data(tse).join('circle').attr('cx', (t) => x(t.x)).attr('cy', yy).attr('r', 3.5).attr('fill', c).attr('stroke', 'var(--color-fg)').attr('stroke-width', 1.5);
+  });
+  svg.append('line').attr('x1', x(simX)).attr('x2', x(simX)).attr('y1', m.t).attr('y2', H - m.b).attr('stroke', 'var(--color-fg)').attr('stroke-opacity', 0.3);
+  const leg = [['Lula', cL(), null], ['Flávio', cF(), null]].concat(showC && showE ? [['tracejado = criador', 'var(--color-fg-muted)', '5 4']] : showC ? [['opinião do criador', 'var(--color-fg-muted)', '5 4']] : []).concat([['cinza = 1º turno real', 'var(--cds-chart-muted)', null]]).concat(tse.length ? [['pontos = TSE', 'var(--color-fg)', null]] : []);
+  let lx = m.l; const lgG = svg.append('g').attr('transform', 'translate(0,12)');
+  leg.forEach(([t, c, da]) => { lgG.append('line').attr('x1', lx).attr('x2', lx + 14).attr('y1', 0).attr('y2', 0).attr('stroke', c).attr('stroke-width', 2.5).attr('stroke-dasharray', da);
+    const tx = lgG.append('text').attr('x', lx + 18).attr('y', 3.5).attr('font-size', 10).attr('fill', 'var(--color-fg-muted)').text(t); lx += 26 + tx.node().getComputedTextLength(); });
+}
+
+function drawRows(id, src, cellsOf) {
+  const d = dash.data(src), tb = document.getElementById(id);
+  if (d.status !== 'ok') { tb.replaceChildren(); return; }
+  tb.replaceChildren(...d.data.map((r) => { const tr = document.createElement('tr');
+    cellsOf(r).forEach(([c, cls]) => { const td = document.createElement('td'); td.textContent = c; if (cls) td.className = cls; tr.appendChild(td); }); return tr; }));
+}
+
+dash.onData(() => {
+  fill('brasil', fmtBrasil); fill('resumo', fmtResumo);
+  fill('percepcao', (k, v) => k === 'ajuste_pp' ? nf(1).format(v) + ' ponto' + (Math.abs(v) === 1 ? '' : 's') : fmtBrasil(k, v));
+  const pc = dash.data('percepcao');
+  if (pc.status === 'ok' && pc.data.length) {
+    const x = pc.data[0], pF = document.getElementById('pF'), pL = document.getElementById('pL');
+    pF.style.width = x.flavio_pct + '%'; pF.style.background = cF(); pF.style.opacity = '.75'; pL.style.width = x.lula_pct + '%'; pL.style.background = cL(); pL.style.opacity = '.75';
+  }
+  const b = dash.data('brasil'), r = dash.data('resumo');
+  if (b.status === 'ok' && b.data.length) {
+    const x = b.data[0];
+    const bF = document.getElementById('bF'), bL = document.getElementById('bL');
+    bF.style.width = x.flavio_pct + '%'; bF.style.background = cF(); bL.style.width = x.lula_pct + '%'; bL.style.background = cL();
+  }
+  if (r.status === 'ok' && r.data.length) {
+    const s = r.data[0];
+    setText(document.getElementById('faixa'), `Lula ${nf(1).format(100 - s.faixa_max)}% a ${nf(1).format(100 - s.faixa_min)}% · Flávio ${nf(1).format(s.faixa_min)}% a ${nf(1).format(s.faixa_max)}%`);
+    const lider = s.flavio_final >= 50 ? 'Flávio' : 'Lula', v = Math.max(s.flavio_final, 100 - s.flavio_final), ch = s.flavio_final >= 50 ? s.chance_flavio : 1 - s.chance_flavio;
+    setText(document.getElementById('takeaway'), `${lider} chega ao domingo como favorito, com ${pct(v)} dos votos válidos projetados e cerca de ${nf(0).format(ch * 100)}% de chance — mas uma virada continua dentro da margem de erro.`);
+  }
+  const at = dash.data('atualizacoes');
+  if (at.status === 'ok' && at.data.length) {
+    const last = [...at.data].sort((a, b2) => String(b2.data).localeCompare(String(a.data)))[0];
+    setText(document.getElementById('stamp'), new Date(last.data).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }));
+  }
+  const ap = dash.data('apuracao'), sec = document.getElementById('apuracao');
+  const br = ap.status === 'ok' ? ap.data.find((a) => a.uf === 'BR') : null;
+  sec.hidden = !br;
+  if (br) {
+    setText(document.getElementById('apF'), pct(Number(br.flavio_pct), 2)); setText(document.getElementById('apL'), pct(Number(br.lula_pct), 2));
+    setText(document.getElementById('apnote'), `${pct(Number(br.urnas_apuradas_pct), 2)} das urnas apuradas · fonte TSE · atualizado ${br.atualizado_em}. Resultado parcial: a ordem de chegada das urnas muda o placar ao longo da noite.`);
+    const f = document.getElementById('apbF'), l = document.getElementById('apbL');
+    f.style.width = br.flavio_pct + '%'; f.style.background = cF(); l.style.width = br.lula_pct + '%'; l.style.background = cL();
+  }
+  drawRows('regbody', 'regioes', (x) => [[x.regiao], [pct(x.lula_pct)], [pct(x.flavio_pct)], [(x.diferenca_votos > 0 ? 'Flávio +' : 'Lula +') + mi(x.diferenca_votos)], [(x.diferenca_1t_votos > 0 ? 'Flávio +' : 'Lula +') + mi(x.diferenca_1t_votos), 'xs-hide'], [pct(x.abstencao_pct), 'xs-hide']]);
+  drawRows('cbody', 'comparativo', (x) => { const lead = (v) => (v > 0 ? 'Flávio +' : 'Lula +') + int(Math.abs(v)); const f = (v) => x.unidade === 'pct' ? pct(v) : x.unidade === 'dif' ? lead(v) : int(v); const d = x.unidade === 'pct' ? (x.variacao >= 0 ? '+' : '−') + nf(1).format(Math.abs(x.variacao)) + ' p.p.' : x.unidade === 'dif' ? (x.variacao > 0 ? 'Flávio +' : 'Lula +') + int(Math.abs(x.variacao)) : (x.variacao >= 0 ? '+' : '−') + int(Math.abs(x.variacao));
+    return [[x.item], [f(x.primeiro_turno)], [f(x.projecao)], [d], [f(x.percepcao_criador), 'xs-hide']]; });
+  drawRows('mbody', 'matriz', (x) => [[grupoNome[x.grupo] || x.grupo], [pct(x.lula * 100, 0)], [pct(x.flavio * 100, 0)], [x.fontes]]);
+  drawRows('hbody', 'historico', (x) => [[String(x.ano)], [x.vencedor], [pct(Number(x.validos_vencedor), 2)], [x.venceu_em_mg], [x.abstencao_2t == null ? '' : pct(Number(x.abstencao_2t)), 'xs-hide']]);
+  drawRows('lbody', 'atualizacoes', (x) => [[new Date(x.data).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })], [x.texto]]);
+  document.querySelectorAll('#lbody td:nth-child(2), #mbody td:nth-child(4)').forEach((td) => { td.style.textAlign = 'left'; td.style.whiteSpace = 'normal'; });
+  const pp = dash.data('pesos_pesquisas'); if (pp.status === 'ok') setText(document.getElementById('n-pesq'), String(pp.data.length));
+  drawEstados(); drawMetodo(); if (!document.getElementById('projecao').hidden) { drawTiles(); drawPolls(); drawDumbbell(); drawSim(); }
+});
+</script>
+
+<footer class="pub">Projeção estatística independente, feita a partir de dados públicos (TSE e pesquisas registradas). Não é pesquisa eleitoral. Os dados são atualizados automaticamente; a página recarrega os números sozinha.</footer>
+</div>
+</body>
+</html>

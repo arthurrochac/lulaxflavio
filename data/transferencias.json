@@ -1,0 +1,154 @@
+[
+{
+"fonte": "Quaest 21/10",
+"grupo": "cury",
+"flavio_pct": 33,
+"lula_pct": 48,
+"subamostra": 65,
+"erro_1t": 4.0
+},
+{
+"fonte": "AtlasIntel 19/10",
+"grupo": "cury",
+"flavio_pct": 42.4,
+"lula_pct": 52.1,
+"subamostra": 150,
+"erro_1t": 8.4
+},
+{
+"fonte": "Meio/Ideia 21/10",
+"grupo": "cury",
+"flavio_pct": 36.2,
+"lula_pct": 48.3,
+"subamostra": 58,
+"erro_1t": 12
+},
+{
+"fonte": "Palver",
+"grupo": "cury",
+"flavio_pct": 32,
+"lula_pct": 64,
+"subamostra": 145,
+"erro_1t": 9.6
+},
+{
+"fonte": "Quaest 21/10",
+"grupo": "renan",
+"flavio_pct": 51,
+"lula_pct": 25,
+"subamostra": 50,
+"erro_1t": 4.0
+},
+{
+"fonte": "AtlasIntel 19/10",
+"grupo": "renan",
+"flavio_pct": 33.5,
+"lula_pct": 31.9,
+"subamostra": 110,
+"erro_1t": 8.4
+},
+{
+"fonte": "Meio/Ideia 21/10",
+"grupo": "renan",
+"flavio_pct": 90.9,
+"lula_pct": 9.1,
+"subamostra": 33,
+"erro_1t": 12
+},
+{
+"fonte": "Palver",
+"grupo": "renan",
+"flavio_pct": 41,
+"lula_pct": 41,
+"subamostra": 110,
+"erro_1t": 9.6
+},
+{
+"fonte": "Quaest 21/10",
+"grupo": "caiado",
+"flavio_pct": 57,
+"lula_pct": 21,
+"subamostra": 48,
+"erro_1t": 4.0
+},
+{
+"fonte": "AtlasIntel 19/10",
+"grupo": "caiado",
+"flavio_pct": 69.8,
+"lula_pct": 24.5,
+"subamostra": 110,
+"erro_1t": 8.4
+},
+{
+"fonte": "Meio/Ideia 21/10",
+"grupo": "caiado",
+"flavio_pct": 58.8,
+"lula_pct": 30.8,
+"subamostra": 39,
+"erro_1t": 12
+},
+{
+"fonte": "AtlasIntel 19/10 (\"outros\")",
+"grupo": "zema",
+"flavio_pct": 61.3,
+"lula_pct": 30.7,
+"subamostra": 15,
+"erro_1t": 8.4
+},
+{
+"fonte": "Meio/Ideia 21/10",
+"grupo": "zema",
+"flavio_pct": 77.8,
+"lula_pct": 22.2,
+"subamostra": 18,
+"erro_1t": 12
+},
+{
+"fonte": "Espectro político (premissa)",
+"grupo": "zema",
+"flavio_pct": 60,
+"lula_pct": 15,
+"subamostra": 15,
+"erro_1t": 12
+},
+{
+"fonte": "Espectro político (premissa)",
+"grupo": "esquerda",
+"flavio_pct": 5,
+"lula_pct": 70,
+"subamostra": 1,
+"erro_1t": 12
+},
+{
+"fonte": "Espectro político (premissa)",
+"grupo": "outros",
+"flavio_pct": 40,
+"lula_pct": 30,
+"subamostra": 1,
+"erro_1t": 12
+},
+{
+"fonte": "Datafolha 13–14/10",
+"grupo": "agregado_cury_renan_caiado",
+"flavio_pct": 46,
+"lula_pct": 27,
+"subamostra": 185,
+"erro_1t": 10.4
+},
+{
+"fonte": "Quaest 14/10",
+"grupo": "faltosos",
+"flavio_pct": 38,
+"lula_pct": 43,
+"subamostra": 474,
+"erro_1t": 4.0
+},
+{
+"fonte": "AtlasIntel 19/10",
+"grupo": "faltosos",
+"flavio_pct": 39.9,
+"lula_pct": 49.3,
+"subamostra": 1250,
+"erro_1t": 8.4
+}
+]

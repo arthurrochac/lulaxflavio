@@ -1,0 +1,142 @@
+[
+{
+"instituto": "Veritá",
+"coleta": "15–19/10",
+"divulgacao": "21/10",
+"flavio_validos": 50.7,
+"entrevistas": 15554,
+"erro_1t": 0.2,
+"vies_pro_lula_1t": 0.13,
+"registro_tse": "BR-06396/2026"
+},
+{
+"instituto": "Quaest",
+"coleta": "17–20/10",
+"divulgacao": "21/10",
+"flavio_validos": 50.56,
+"entrevistas": 2154,
+"erro_1t": 4.0,
+"vies_pro_lula_1t": 2.87,
+"registro_tse": "BR-08535/2026"
+},
+{
+"instituto": "AtlasIntel/Bloomberg",
+"coleta": "13–18/10",
+"divulgacao": "19/10",
+"flavio_validos": 51.1,
+"entrevistas": 4998,
+"erro_1t": 8.4,
+"vies_pro_lula_1t": 4.77,
+"registro_tse": "BR-02418/2026"
+},
+{
+"instituto": "Gerp",
+"coleta": "15–19/10",
+"divulgacao": "20/10",
+"flavio_validos": 53.0,
+"entrevistas": 2400,
+"erro_1t": 6.0,
+"vies_pro_lula_1t": 0.13,
+"registro_tse": "BR-05187/2026 (tracking; registro desta rodada não confirmado)"
+},
+{
+"instituto": "Palver",
+"coleta": "10–13/10",
+"divulgacao": "14/10",
+"flavio_validos": 50.51,
+"entrevistas": 5000,
+"erro_1t": 9.6,
+"vies_pro_lula_1t": null,
+"registro_tse": "BR-08028/2026"
+},
+{
+"instituto": "PoderData/Aya",
+"coleta": "16–18/10",
+"divulgacao": "19/10",
+"flavio_validos": 52.0,
+"entrevistas": 3000,
+"erro_1t": 8.4,
+"vies_pro_lula_1t": 3.87,
+"registro_tse": "BR-02586/2026"
+},
+{
+"instituto": "Datafolha",
+"coleta": "—",
+"divulgacao": "19/10",
+"flavio_validos": 51.0,
+"entrevistas": 2520,
+"erro_1t": 10.4,
+"vies_pro_lula_1t": 4.87,
+"registro_tse": "não localizado"
+},
+{
+"instituto": "Futura",
+"coleta": "19–20/10",
+"divulgacao": "21/10",
+"flavio_validos": 51.1,
+"entrevistas": 2000,
+"erro_1t": 9.8,
+"vies_pro_lula_1t": 0.33,
+"registro_tse": "BR-06614/2026"
+},
+{
+"instituto": "DataTrends",
+"coleta": "7–9/10",
+"divulgacao": "10/10",
+"flavio_validos": 53.1,
+"entrevistas": 2000,
+"erro_1t": 10.4,
+"vies_pro_lula_1t": null,
+"registro_tse": "BR-03576/2026"
+},
+{
+"instituto": "CNT/MDA",
+"coleta": "13–15/10",
+"divulgacao": "16/10",
+"flavio_validos": 50.5,
+"entrevistas": 2014,
+"erro_1t": 10.6,
+"vies_pro_lula_1t": 7.57,
+"registro_tse": "BR-00652/2026"
+},
+{
+"instituto": "Vox Brasil",
+"coleta": "15–17/10",
+"divulgacao": "18/10",
+"flavio_validos": 49.0,
+"entrevistas": 2100,
+"erro_1t": null,
+"vies_pro_lula_1t": null,
+"registro_tse": "BR-04332/2026"
+},
+{
+"instituto": "Indexa/Broadcast",
+"coleta": "13–14/10",
+"divulgacao": "15/10",
+"flavio_validos": 51.0,
+"entrevistas": 2000,
+"erro_1t": null,
+"vies_pro_lula_1t": null,
+"registro_tse": "BR-04629/2026"
+},
+{
+"instituto": "Ipespe/Abrapel",
+"coleta": "13–15/10",
+"divulgacao": "16/10",
+"flavio_validos": 51.2,
+"entrevistas": 1500,
+"erro_1t": null,
+"vies_pro_lula_1t": null,
+"registro_tse": "BR-00223/2026"
+},
+{
+"instituto": "BTG/Nexus",
+"coleta": "16–18/10",
+"divulgacao": "19/10",
+"flavio_validos": 50.3,
+"entrevistas": 2002,
+"erro_1t": 18.2,
+"vies_pro_lula_1t": null,
+"registro_tse": "BR-04499/2026"
+}
+]

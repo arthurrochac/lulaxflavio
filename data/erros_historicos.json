@@ -1,0 +1,44 @@
+[
+{
+"eleicao": "2014 · 2º turno",
+"instituto": "Datafolha (véspera)",
+"candidato": "Aécio Neves",
+"previsto_validos": 48.0,
+"resultado_validos": 48.36
+},
+{
+"eleicao": "2018 · 2º turno",
+"instituto": "Datafolha (véspera)",
+"candidato": "Jair Bolsonaro",
+"previsto_validos": 55.0,
+"resultado_validos": 55.13
+},
+{
+"eleicao": "2022 · 2º turno",
+"instituto": "Datafolha (véspera)",
+"candidato": "Jair Bolsonaro",
+"previsto_validos": 48.0,
+"resultado_validos": 49.1
+},
+{
+"eleicao": "2022 · 1º turno",
+"instituto": "Datafolha (véspera)",
+"candidato": "Jair Bolsonaro",
+"previsto_validos": 36.0,
+"resultado_validos": 43.2
+},
+{
+"eleicao": "2026 · 1º turno",
+"instituto": "Datafolha (3/10)",
+"candidato": "Flávio Bolsonaro",
+"previsto_validos": 42.0,
+"resultado_validos": 47.03
+},
+{
+"eleicao": "2026 · 1º turno",
+"instituto": "Veritá",
+"candidato": "Flávio Bolsonaro",
+"previsto_validos": 47.0,
+"resultado_validos": 47.03
+}
+]

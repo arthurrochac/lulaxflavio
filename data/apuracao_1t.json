@@ -1,0 +1,86 @@
+[
+{
+"urnas_apuradas_pct": 1.5,
+"flavio_pct": 49.2,
+"lula_pct": 42.2,
+"horario": "17:27"
+},
+{
+"urnas_apuradas_pct": 7.6,
+"flavio_pct": 50.7,
+"lula_pct": 41.0,
+"horario": "17:52"
+},
+{
+"urnas_apuradas_pct": 21.96,
+"flavio_pct": 51.07,
+"lula_pct": 40.82,
+"horario": "18:16"
+},
+{
+"urnas_apuradas_pct": 64.81,
+"flavio_pct": 49.58,
+"lula_pct": 42.25,
+"horario": "19:06"
+},
+{
+"urnas_apuradas_pct": 84.96,
+"flavio_pct": 48.47,
+"lula_pct": 43.49,
+"horario": "19:45"
+},
+{
+"urnas_apuradas_pct": 88.46,
+"flavio_pct": 48.19,
+"lula_pct": 43.8,
+"horario": "20:11"
+},
+{
+"urnas_apuradas_pct": 90.61,
+"flavio_pct": 48.02,
+"lula_pct": 44.01,
+"horario": "20:21"
+},
+{
+"urnas_apuradas_pct": 92.58,
+"flavio_pct": 47.84,
+"lula_pct": 44.2,
+"horario": "20:41"
+},
+{
+"urnas_apuradas_pct": 96.44,
+"flavio_pct": 47.51,
+"lula_pct": 44.59,
+"horario": "20:55"
+},
+{
+"urnas_apuradas_pct": 98.97,
+"flavio_pct": 47.22,
+"lula_pct": 44.94,
+"horario": "21:12"
+},
+{
+"urnas_apuradas_pct": 99.37,
+"flavio_pct": 47.15,
+"lula_pct": 45.01,
+"horario": "21:30"
+},
+{
+"urnas_apuradas_pct": 99.69,
+"flavio_pct": 47.1,
+"lula_pct": 45.08,
+"horario": "21:52"
+},
+{
+"urnas_apuradas_pct": 99.95,
+"flavio_pct": 47.04,
+"lula_pct": 45.15,
+"horario": "22:51"
+},
+{
+"urnas_apuradas_pct": 100,
+"flavio_pct": 47.03,
+"lula_pct": 45.16,
+"horario": "final"
+}
+]

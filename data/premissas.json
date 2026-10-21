@@ -1,0 +1,87 @@
+[
+{
+"parametro": "lealdade",
+"valor": 0.98,
+"descricao": "Parcela dos eleitores de Flávio e de Lula no 1º turno que repetem o voto"
+},
+{
+"parametro": "troca",
+"valor": 0.01,
+"descricao": "Parcela que troca de lado, nos dois sentidos"
+},
+{
+"parametro": "peso_datafolha",
+"valor": 0.25,
+"descricao": "Peso do agregado do Datafolha na matriz de Cury, Renan e Caiado"
+},
+{
+"parametro": "novos_abstencionistas",
+"valor": 0.03,
+"descricao": "Parcela dos abstencionistas do 1º turno que vota no 2º"
+},
+{
+"parametro": "novos_brancos_nulos",
+"valor": 0.25,
+"descricao": "Parcela de quem anulou no 1º turno que escolhe um candidato"
+},
+{
+"parametro": "brancos_nulos_extra_pp",
+"valor": 0.5,
+"descricao": "Aumento de brancos e nulos no 2º turno, em pontos"
+},
+{
+"parametro": "parcela_brancos",
+"valor": 0.31,
+"descricao": "Brancos dentro de brancos+nulos (2º turno de 2022)"
+},
+{
+"parametro": "teto_peso_instituto",
+"valor": 0.25,
+"descricao": "Peso máximo de um instituto na média"
+},
+{
+"parametro": "erro_sem_historico",
+"valor": 12,
+"descricao": "Erro presumido no 1º turno para institutos sem histórico"
+},
+{
+"parametro": "vies_sem_historico",
+"valor": 2.5,
+"descricao": "Viés pró-Lula presumido para institutos sem histórico"
+},
+{
+"parametro": "fracao_correcao_instituto",
+"valor": 0.15,
+"descricao": "Fração do viés do 1º turno aplicada (30% × metade)"
+},
+{
+"parametro": "faltosos_na_amostra",
+"valor": 0.22,
+"descricao": "Parcela das amostras que faltou ou anulou no 1º turno (Quaest)"
+},
+{
+"parametro": "comparecimento_faltosos",
+"valor": 0.3,
+"descricao": "Parcela desse grupo que deve votar no 2º turno"
+},
+{
+"parametro": "tendencia",
+"valor": -0.3,
+"descricao": "Ajuste pela tendência recente pró-Lula, em pontos"
+},
+{
+"parametro": "peso_modelo",
+"valor": 0.5,
+"descricao": "Peso do modelo de transferência na projeção final"
+},
+{
+"parametro": "desvio_padrao",
+"valor": 1.7,
+"descricao": "Incerteza da projeção (desvio padrão, pontos)"
+},
+{
+"parametro": "percepcao_criador_pp",
+"valor": 1.5,
+"descricao": "Percepção do criador do projeto: pontos a mais para Flávio e a menos para Lula (opinião, fora do modelo)"
+}
+]

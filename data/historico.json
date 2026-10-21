@@ -1,0 +1,65 @@
+[
+{
+"ano": 1989,
+"vencedor": "Collor",
+"validos_vencedor": 53.03,
+"lider_1t_venceu": "Sim",
+"venceu_em_mg": "Sim",
+"abstencao_1t": null,
+"abstencao_2t": null
+},
+{
+"ano": 2002,
+"vencedor": "Lula",
+"validos_vencedor": 61.27,
+"lider_1t_venceu": "Sim",
+"venceu_em_mg": "Sim",
+"abstencao_1t": 17.7,
+"abstencao_2t": 20.5
+},
+{
+"ano": 2006,
+"vencedor": "Lula",
+"validos_vencedor": 60.83,
+"lider_1t_venceu": "Sim",
+"venceu_em_mg": "Sim",
+"abstencao_1t": 16.8,
+"abstencao_2t": 19.0
+},
+{
+"ano": 2010,
+"vencedor": "Dilma",
+"validos_vencedor": 56.05,
+"lider_1t_venceu": "Sim",
+"venceu_em_mg": "Sim",
+"abstencao_1t": 18.1,
+"abstencao_2t": 21.5
+},
+{
+"ano": 2014,
+"vencedor": "Dilma",
+"validos_vencedor": 51.64,
+"lider_1t_venceu": "Sim",
+"venceu_em_mg": "Sim",
+"abstencao_1t": 19.39,
+"abstencao_2t": 21.1
+},
+{
+"ano": 2018,
+"vencedor": "Bolsonaro",
+"validos_vencedor": 55.13,
+"lider_1t_venceu": "Sim",
+"venceu_em_mg": "Sim",
+"abstencao_1t": 20.33,
+"abstencao_2t": 21.3
+},
+{
+"ano": 2022,
+"vencedor": "Lula",
+"validos_vencedor": 50.9,
+"lider_1t_venceu": "Sim",
+"venceu_em_mg": "Sim",
+"abstencao_1t": 20.95,
+"abstencao_2t": 20.59
+}
+]
