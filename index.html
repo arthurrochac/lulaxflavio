@@ -112,8 +112,16 @@ footer.pub { max-width: 1080px; margin: 32px auto 0; color: var(--color-fg-muted
         const vF = voto('22'), vL = voto('13');
         const pst = num(j.s && j.s.pst != null ? j.s.pst : j.pst);
         if (!(vF + vL > 0) || !(pst > 0)) return false;
-        const linha = { uf: 'BR', estado: 'Brasil', urnas_apuradas_pct: pst, flavio_pct: Math.round(10000 * vF / (vF + vL)) / 100, lula_pct: Math.round(10000 * vL / (vF + vL)) / 100, atualizado_em: String(j.ht || j.hg || '').slice(0, 5), fonte: 'tse_ao_vivo' };
-        if (!vivo.length || vivo[vivo.length - 1].urnas_apuradas_pct !== linha.urnas_apuradas_pct) {
+        const pega = (o, ks) => { for (const k of ks) { if (o && o[k] != null && o[k] !== '') { const v = num(o[k]); if (isFinite(v)) return v; } } return null; };
+        const S = j.s || j, E = j.e || j, V = j.v || j;
+        const linha = { uf: 'BR', estado: 'Brasil', urnas_apuradas_pct: pst, flavio_pct: Math.round(10000 * vF / (vF + vL)) / 100, lula_pct: Math.round(10000 * vL / (vF + vL)) / 100,
+          atualizado_em: String(j.ht || j.hg || '').slice(0, 5), fonte: 'tse_ao_vivo', flavio_votos: vF, lula_votos: vL,
+          secoes_apuradas: pega(S, ['st']), secoes_total: pega(S, ['ts', 's']),
+          validos: pega(V, ['vv']), brancos: pega(V, ['vb']), nulos: pega(V, ['tvn', 'vn']),
+          comparecimento: pega(E, ['c']), abstencao: pega(E, ['a']), eleitorado: pega(E, ['te']) };
+        if (qs.has('tse')) linha.teste = ELE;
+        if (!vivo.length || vivo[vivo.length - 1].urnas_apuradas_pct !== linha.urnas_apuradas_pct || vivo[vivo.length - 1].validos !== linha.validos) {
+          if (vivo.length && vivo[vivo.length - 1].urnas_apuradas_pct === linha.urnas_apuradas_pct) vivo.pop();
           vivo.push(linha);
           try { localStorage.setItem('tse_' + ELE, JSON.stringify(vivo)); } catch (e) {}
         }
@@ -262,11 +270,19 @@ footer.pub { max-width: 1080px; margin: 32px auto 0; color: var(--color-fg-muted
     <h2><span class="dot"></span>Apuração oficial em andamento</h2>
     <p class="note" id="apnote">—</p>
     <div class="duel">
-      <div class="cand"><span class="name">Lula</span><span class="big" id="apL">—</span></div>
+      <div class="cand"><span class="name">Lula</span><span class="big" id="apL">—</span><span class="votes" id="apLv"></span></div>
       <div class="vs">apurado</div>
-      <div class="cand r"><span class="name">Flávio</span><span class="big" id="apF">—</span></div>
+      <div class="cand r"><span class="name">Flávio</span><span class="big" id="apF">—</span><span class="votes" id="apFv"></span></div>
     </div>
     <div class="bar"><span id="apbL"></span><span id="apbF"></span><i class="mid"></i></div>
+    <div class="kpis" id="apkpis" hidden>
+      <div class="kpi"><div class="k">Urnas apuradas</div><div class="v" id="apUr">—</div></div>
+      <div class="kpi"><div class="k">Votos válidos</div><div class="v" id="apVv">—</div></div>
+      <div class="kpi"><div class="k">Brancos</div><div class="v" id="apBr">—</div></div>
+      <div class="kpi"><div class="k">Nulos</div><div class="v" id="apNu">—</div></div>
+      <div class="kpi"><div class="k">Comparecimento</div><div class="v" id="apCo">—</div></div>
+      <div class="kpi"><div class="k">Abstenção</div><div class="v" id="apAb">—</div></div>
+    </div>
   </section>
 
   <section class="card" id="resultado">
@@ -1145,9 +1161,26 @@ dash.onData(() => {
   sec.hidden = !br;
   if (br) {
     setText(document.getElementById('apF'), pct(Number(br.flavio_pct), 2)); setText(document.getElementById('apL'), pct(Number(br.lula_pct), 2));
-    setText(document.getElementById('apnote'), `${pct(Number(br.urnas_apuradas_pct), 2)} das urnas apuradas · fonte TSE · atualizado ${br.atualizado_em}. Resultado parcial: a ordem de chegada das urnas muda o placar ao longo da noite.`);
+    const teste = br.teste ? `TESTE com o 1º turno (eleição ${br.teste}); percentuais só entre Lula e Flávio. ` : '';
+    setText(document.getElementById('apnote'), `${teste}${pct(Number(br.urnas_apuradas_pct), 2)} das urnas apuradas · TSE, ${br.atualizado_em}${br.fonte === 'tse_ao_vivo' ? ' · lido direto do TSE a cada 60 s' : ''}. Resultado parcial: o placar muda conforme as urnas chegam.`);
     const f = document.getElementById('apbF'), l = document.getElementById('apbL');
     f.style.width = br.flavio_pct + '%'; f.style.background = cF(); l.style.width = br.lula_pct + '%'; l.style.background = cL();
+    const ok = (k) => br[k] != null && br[k] !== '' && isFinite(Number(br[k]));
+    const N = (k) => Number(br[k]);
+    document.getElementById('apLv').textContent = ok('lula_votos') ? int(N('lula_votos')) + ' votos' : '';
+    document.getElementById('apFv').textContent = ok('flavio_votos') ? int(N('flavio_votos')) + ' votos' : '';
+    const tem = ok('validos') || ok('secoes_apuradas');
+    document.getElementById('apkpis').hidden = !tem;
+    if (tem) {
+      const sub = (v, tot) => tot > 0 ? ' (' + pct(100 * v / tot) + ')' : '';
+      const comp = ok('comparecimento') ? N('comparecimento') : NaN, abst = ok('abstencao') ? N('abstencao') : NaN;
+      setText(document.getElementById('apUr'), ok('secoes_apuradas') && ok('secoes_total') ? `${int(N('secoes_apuradas'))} de ${int(N('secoes_total'))}` : pct(Number(br.urnas_apuradas_pct), 2));
+      setText(document.getElementById('apVv'), ok('validos') ? int(N('validos')) + sub(N('validos'), comp) : '—');
+      setText(document.getElementById('apBr'), ok('brancos') ? int(N('brancos')) + sub(N('brancos'), comp) : '—');
+      setText(document.getElementById('apNu'), ok('nulos') ? int(N('nulos')) + sub(N('nulos'), comp) : '—');
+      setText(document.getElementById('apCo'), ok('comparecimento') ? int(comp) + sub(comp, comp + abst) : '—');
+      setText(document.getElementById('apAb'), ok('abstencao') ? int(abst) + sub(abst, comp + abst) : '—');
+    }
   }
   drawRows('regbody', 'regioes', (x) => [[x.regiao], [pct(x.lula_pct)], [pct(x.flavio_pct)], [(x.diferenca_votos > 0 ? 'Flávio +' : 'Lula +') + mi(x.diferenca_votos)], [(x.diferenca_1t_votos > 0 ? 'Flávio +' : 'Lula +') + mi(x.diferenca_1t_votos), 'xs-hide'], [pct(x.abstencao_pct), 'xs-hide']]);
   drawRows('cbody', 'comparativo', (x) => { const lead = (v) => (v > 0 ? 'Flávio +' : 'Lula +') + int(Math.abs(v)); const f = (v) => x.unidade === 'pct' ? pct(v) : x.unidade === 'dif' ? lead(v) : int(v); const d = x.unidade === 'pct' ? (x.variacao >= 0 ? '+' : '−') + nf(1).format(Math.abs(x.variacao)) + ' p.p.' : x.unidade === 'dif' ? (x.variacao > 0 ? 'Flávio +' : 'Lula +') + int(Math.abs(x.variacao)) : (x.variacao >= 0 ? '+' : '−') + int(Math.abs(x.variacao));
